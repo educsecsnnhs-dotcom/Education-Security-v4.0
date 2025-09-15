@@ -1,35 +1,15 @@
 // routes/ssgAnnouncements.js
-// Handles SSG announcements (CRUD)
-
 const express = require('express');
 const router = express.Router();
-const mongoose = require('mongoose');
+const Announcement = require('../models/SSGAnnouncement');
 
-// ------------------------------
-// Mongoose Schema
-// ------------------------------
-const AnnouncementSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  body: { type: String, required: true },
-  createdBy: { type: String, required: true }, // username or userId
-  createdAt: { type: Date, default: Date.now }
-});
-
-const Announcement = mongoose.model('SSGAnnouncement', AnnouncementSchema);
-
-// ------------------------------
 // Middleware: ensure logged-in
-// ------------------------------
 function requireAuth(req, res, next) {
   if (!req.session.user) {
     return res.status(401).json({ message: 'Unauthorized' });
   }
   next();
 }
-
-// ------------------------------
-// Routes
-// ------------------------------
 
 // GET all announcements
 router.get('/', async (req, res) => {
