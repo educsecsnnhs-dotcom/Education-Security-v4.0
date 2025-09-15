@@ -1,5 +1,6 @@
-// server.js (fixed)
-// Rebuilt server to mount all routes and provide compatibility endpoints and runtime folder creation
+// server.js 
+// Rebuilt server with improved Mongo connection, session handling, and route mounting
+
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
@@ -13,7 +14,7 @@ const mongoose = require('mongoose');
 const app = express();
 const ROOT = __dirname;
 
-// ensure runtime dirs exist
+// Ensure runtime dirs exist
 fs.mkdirSync(path.join(ROOT, 'uploads', 'enrollments'), { recursive: true });
 fs.mkdirSync(path.join(ROOT, 'uploads', 'profilePics'), { recursive: true });
 fs.mkdirSync(path.join(ROOT, 'exports'), { recursive: true });
@@ -23,43 +24,83 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors({ origin: true, credentials: true }));
 
-// connect to DB if MONGO_URI exists
+// ------------------------------
+// MongoDB Connection
+// ------------------------------
 if (process.env.MONGO_URI) {
-  mongoose.connect(process.env.MONGO_URI, {});
-  mongoose.connection.on('connected', () => console.log('MongoDB connected'));
-  mongoose.connection.on('error', (err) => console.error('MongoDB error', err));
+  mongoose.connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    serverSelectionTimeoutMS: 10000, // fail fast
+  });
+
+  mongoose.connection.on('connected', () => {
+    console.log('✅ MongoDB connected');
+  });
+
+  mongoose.connection.on('error', (err) => {
+    console.error('❌ MongoDB connection error:', err.message);
+  });
+
+  mongoose.connection.on('disconnected', () => {
+    console.warn('⚠️ MongoDB disconnected, attempting reconnect...');
+  });
+} else {
+  console.warn('⚠️ No MONGO_URI provided, database features disabled.');
 }
 
-// session
+// ------------------------------
+// Session Setup
+// ------------------------------
 app.use(session({
   name: process.env.SESSION_NAME || 'sid',
-  secret: process.env.SESSION_SECRET || 'change_me',
+  secret: process.env.SESSION_SECRET || 'change_me_now',
   resave: false,
   saveUninitialized: false,
-  store: MongoStore.create({ mongoUrl: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/sessions' }),
+  store: MongoStore.create({
+    mongoUrl: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/sessions',
+    ttl: 60 * 60 * 24 * 7, // 7 days
+    autoRemove: 'native',
+    crypto: {
+      secret: process.env.SESSION_SECRET || 'change_me_now',
+    },
+  }),
   cookie: {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 1000 * 60 * 60 * 4
+    secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
   }
 }));
 
-// mount all route files under /api/<basename> and also plural variants
-const routesDir = path.join(ROOT, 'routes');
-fs.readdirSync(routesDir).forEach(f => {
-  if (!f.endsWith('.js')) return;
-  const base = '/' + path.basename(f, '.js');
-  const router = require(path.join(routesDir, f));
-  app.use('/api' + base, router);
-  // mount plural form if different
-  const plural = '/api/' + (base.slice(1) + 's');
-  if (plural !== '/api' + base) {
-    app.use(plural, router);
+// Debug session middleware (can be silenced later)
+app.use((req, res, next) => {
+  if (!req.session) {
+    console.error('⚠️ Session not available!');
   }
+  next();
 });
 
-// mount compat router for frontend-expecting endpoints
+// ------------------------------
+// Routes Auto-Mounting
+// ------------------------------
+const routesDir = path.join(ROOT, 'routes');
+if (fs.existsSync(routesDir)) {
+  fs.readdirSync(routesDir).forEach(f => {
+    if (!f.endsWith('.js')) return;
+    const base = '/' + path.basename(f, '.js');
+    const router = require(path.join(routesDir, f));
+    app.use('/api' + base, router);
+
+    // mount plural form if different
+    const plural = '/api/' + (base.slice(1) + 's');
+    if (plural !== '/api' + base) {
+      app.use(plural, router);
+    }
+  });
+}
+
+// Compat routes for frontend-expecting endpoints
 try {
   const compat = require('./routes/compat');
   app.use('/api', compat);
@@ -67,32 +108,46 @@ try {
   console.warn('Compat router not loaded:', err.message);
 }
 
-// serve static frontend (public)
+// ------------------------------
+// Static Frontend
+// ------------------------------
 app.use(express.static(path.join(ROOT, 'public')));
 
-// unified error handler
+// ------------------------------
+// Unified Error Handler
+// ------------------------------
 app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err && err.stack ? err.stack : err);
-  res.status(500).json({ message: 'Server error', error: err && err.message ? err.message : String(err) });
+  console.error('🔥 Unhandled error:', err.stack || err);
+  res.status(500).json({
+    message: 'Server error',
+    error: err.message || String(err),
+  });
 });
 
-// fallback - serve login page if any (preserve existing behavior)
+// ------------------------------
+// Fallback → login.html if exists
+// ------------------------------
 app.get('*', (req, res) => {
   const login = path.join(__dirname, 'public', 'html', 'login.html');
   if (fs.existsSync(login)) return res.sendFile(login);
   return res.status(404).send('Not Found');
 });
 
+// ------------------------------
+// Start Server + Seed Admin
+// ------------------------------
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, async () => {
-  console.log(`Server running on ${PORT}`);
-  // attempt to run seedAdmin if exists
+  console.log(`🚀 Server running on port ${PORT}`);
+
+  // seed SuperAdmin user
   try {
     const seed = require('./seedAdmin');
-    if (seed && typeof seed === 'function') {
+    if (typeof seed === 'function') {
       await seed();
+      console.log('✅ SuperAdmin seeding complete');
     }
   } catch (err) {
-    console.warn('seedAdmin not executed:', err && err.message ? err.message : err);
+    console.warn('⚠️ seedAdmin not executed:', err.message || err);
   }
 });
