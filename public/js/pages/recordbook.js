@@ -1,93 +1,165 @@
 // public/js/pages/recordbook.js
-(async function(){
-  const endpoints = {
-    sections: ['/api/sections','/api/recordbook/sections'],
-    subjects: ['/api/subjects','/api/recordbook/subjects'],
-    records: ['/api/recordbook','/api/records'] // GET ?section=:id&subject=:id
-  };
-  const el=id=>document.getElementById(id);
+// Unified Record Book Management for Student, Moderator, Registrar, SuperAdmin
 
-  async function tryGet(paths){
-    for(const p of paths){
-      try{ const r = await PageUtils.fetchJson(p); if(r.ok) return r; }catch(e){} 
-    }
-    return null;
-  }
+document.addEventListener("DOMContentLoaded", () => {
+  Auth.requireLogin();
+  const user = Auth.getUser();
 
-  async function loadSelectors(){
-    // sections
-    const s = await tryGet(endpoints.sections);
-    const secSel = el('selectSection'), subSel=el('selectSubject');
-    if(s){
-      const j = await s.json(); const items = j.data || j.sections || j || [];
-      secSel.innerHTML = '<option value="">Select section</option>';
-      items.forEach(it => { const o=document.createElement('option'); o.value = it._id||it.id; o.textContent = it.name || it.title || (it.level && it.name) || it; secSel.appendChild(o); });
-    } else { secSel.innerHTML = '<option value="">No sections</option>'; }
-    // subjects
-    const sub = await tryGet(endpoints.subjects);
-    if(sub){
-      const j = await sub.json(); const items = j.data || j.subjects || j || [];
-      subSel.innerHTML = '<option value="">Select subject</option>';
-      items.forEach(it => { const o=document.createElement('option'); o.value = it._id||it.id; o.textContent = it.name || it.title || it; subSel.appendChild(o); });
-    } else { subSel.innerHTML = '<option value="">No subjects</option>'; }
-  }
+  // DOM references
+  const recordTable = document.getElementById("recordTable");
+  const sectionSelect = document.getElementById("sectionSelect");
+  const subjectInput = document.getElementById("subjectInput");
+  const uploadBtn = document.getElementById("uploadGradesBtn");
+  const finalizeBtn = document.getElementById("finalizeBtn");
+  const studentTable = document.getElementById("studentGradesTable");
 
-  async function loadRecord(){
-    const sec = el('selectSection').value;
-    const sub = el('selectSubject').value;
-    const container = el('recordContainer');
-    if(!sec || !sub){ container.innerHTML = '<div class="muted small">Choose section and subject</div>'; return; }
-    container.innerHTML = '<div class="muted small">Loading recordbook…</div>';
-    try{
-      // try different endpoints
-      let res = null;
-      for(const p of endpoints.records){ 
-        try{
-          const url = p + '?section=' + encodeURIComponent(sec) + '&subject=' + encodeURIComponent(sub);
-          const r = await PageUtils.fetchJson(url);
-          if(r.ok){ res = r; break; }
-        }catch(e){}
+  /**
+   * 🔹 Student: View my grades
+   */
+  async function loadMyGrades() {
+    try {
+      const grades = await apiFetch("/api/student/grades");
+      studentTable.innerHTML = "";
+
+      if (!grades.length) {
+        studentTable.innerHTML = `<tr><td colspan="3">No grades available yet ✅</td></tr>`;
+        return;
       }
-      if(!res){ container.innerHTML = '<div class="muted small">Recordbook endpoint not available</div>'; return; }
-      const j = await res.json(); const items = j.data || j.records || j || [];
-      if(!items || items.length === 0){ container.innerHTML = '<div class="muted small">No record entries.</div>'; return; }
-      // generate table
-      const table = document.createElement('div');
-      table.innerHTML = `<div style="overflow:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left">Student</th><th>Grade</th><th>Actions</th></tr></thead><tbody></tbody></table></div>`;
-      const tbody = table.querySelector('tbody');
-      items.forEach(row => {
-        const tr = document.createElement('tr');
-        const student = row.studentName || row.name || row.student || (row.student && row.student.name) || 'Student';
-        const grade = row.grade || row.score || '';
-        tr.innerHTML = `<td style="padding:8px;border-top:1px solid #eef2ff">${PageUtils.escapeHtml(student)}</td>
-                        <td style="padding:8px;border-top:1px solid #eef2ff"><input data-id="${row._id||row.id||''}" value="${PageUtils.escapeHtml(String(grade))}" class="input" style="width:80px"/></td>
-                        <td style="padding:8px;border-top:1px solid #eef2ff"><button class="btn ghost updateBtn">Update</button></td>`;
-        tbody.appendChild(tr);
-      });
-      container.innerHTML = ''; container.appendChild(table);
 
-      container.querySelectorAll('.updateBtn').forEach(btn=>{
-        btn.addEventListener('click', async (ev)=>{
-          const input = ev.target.closest('tr').querySelector('input');
-          const id = input.getAttribute('data-id'); const value = input.value;
-          try{
-            // attempt PUT to /api/recordbook/:id
-            let ok=false;
-            try{
-              const r = await PageUtils.fetchJson('/api/recordbook/' + id, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ grade: value }) });
-              if(r.ok) ok=true;
-            }catch(e){}
-            if(!ok) alert('Update failed');
-            else { alert('Updated'); loadRecord(); }
-          }catch(e){ console.error(e); alert('Error'); }
-        });
+      grades.forEach((g) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${g.section}</td>
+          <td>${g.subject}</td>
+          <td>${Array.isArray(g.grades) ? g.grades.join(", ") : g.grade || "—"}</td>
+        `;
+        studentTable.appendChild(row);
       });
-
-    }catch(e){ console.error(e); container.innerHTML = '<div class="muted small">Failed to load recordbook.</div>'; }
+    } catch (err) {
+      console.error("Error loading grades:", err);
+      studentTable.innerHTML = `<tr><td colspan="3">⚠️ Failed to load grades</td></tr>`;
+    }
   }
 
-  // events
-  el('loadRecord').addEventListener('click', loadRecord);
-  el('logoutBtn')?.addEventListener('click', async ()=>{ try{ await PageUtils.fetchJson('/api/auth/logout',{method:'POST'}); }catch(e){} location.href='/html/login.html'; });
-  await loadSelectors();
-})();
+  /**
+   * 🔹 Moderator: Load section students for grade entry
+   */
+  async function loadSectionForGrades(sectionId, subject) {
+    try {
+      const section = await apiFetch(`/api/recordbook/section/${sectionId}?subject=${subject}`);
+      recordTable.innerHTML = "";
+
+      if (!section.students || !section.students.length) {
+        recordTable.innerHTML = `<tr><td colspan="3">No students found</td></tr>`;
+        return;
+      }
+
+      section.students.forEach((s) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${s.lrn || "—"}</td>
+          <td>${s.fullName || s.name}</td>
+          <td><input type="number" min="0" max="100" class="gradeInput" data-id="${s._id}" placeholder="Enter grade"></td>
+        `;
+        recordTable.appendChild(row);
+      });
+    } catch (err) {
+      console.error("Error loading section:", err);
+      recordTable.innerHTML = `<tr><td colspan="3">⚠️ Failed to load section</td></tr>`;
+    }
+  }
+
+  /**
+   * 🔹 Moderator: Submit grades
+   */
+  async function uploadGrades() {
+    const sectionId = sectionSelect.value;
+    const subject = subjectInput.value.trim();
+
+    if (!sectionId || !subject) {
+      return alert("⚠️ Please select a section and enter subject name");
+    }
+
+    const grades = [];
+    document.querySelectorAll(".gradeInput").forEach((input) => {
+      const val = input.value.trim();
+      if (val) {
+        grades.push({ studentId: input.dataset.id, grade: Number(val) });
+      }
+    });
+
+    if (!grades.length) {
+      return alert("⚠️ No grades entered");
+    }
+
+    try {
+      await apiFetch("/api/recordbook/upload", {
+        method: "POST",
+        body: JSON.stringify({ sectionId, subject, grades }),
+      });
+      alert("✅ Grades uploaded successfully!");
+    } catch (err) {
+      console.error("Upload grades error:", err);
+      alert("❌ Failed to upload grades");
+    }
+  }
+
+  /**
+   * 🔹 Registrar: Finalize / Lock record book
+   */
+  async function finalizeRecordBook() {
+    const sectionId = sectionSelect.value;
+    const subject = subjectInput.value.trim();
+
+    if (!sectionId || !subject) {
+      return alert("⚠️ Please select section and subject to finalize");
+    }
+
+    if (!confirm("⚠️ Finalizing will lock this record book. Proceed?")) return;
+
+    try {
+      await apiFetch("/api/recordbook/finalize", {
+        method: "POST",
+        body: JSON.stringify({ sectionId, subject }),
+      });
+      alert("✅ Record book finalized successfully!");
+    } catch (err) {
+      console.error("Finalize error:", err);
+      alert("❌ Failed to finalize record book");
+    }
+  }
+
+  // 🔹 Role-based initialization
+  if (user.role === "Student") {
+    loadMyGrades();
+  }
+
+  if (user.role === "Moderator") {
+    apiFetch("/api/attendance/mySections")
+      .then((sections) => {
+        sectionSelect.innerHTML = `<option value="">-- Select Section --</option>`;
+        sections.forEach((sec) => {
+          sectionSelect.innerHTML += `<option value="${sec._id}">${sec.name}</option>`;
+        });
+      })
+      .catch((err) => console.error("Error loading sections:", err));
+
+    sectionSelect.addEventListener("change", () => {
+      if (sectionSelect.value && subjectInput.value.trim()) {
+        loadSectionForGrades(sectionSelect.value, subjectInput.value.trim());
+      }
+    });
+
+    subjectInput.addEventListener("change", () => {
+      if (sectionSelect.value && subjectInput.value.trim()) {
+        loadSectionForGrades(sectionSelect.value, subjectInput.value.trim());
+      }
+    });
+
+    uploadBtn.addEventListener("click", uploadGrades);
+  }
+
+  if (["Registrar", "SuperAdmin"].includes(user.role)) {
+    finalizeBtn.addEventListener("click", finalizeRecordBook);
+  }
+});
