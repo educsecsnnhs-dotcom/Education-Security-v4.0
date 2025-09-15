@@ -1,12 +1,16 @@
 // public/js/utils.js
-// Global frontend utilities used across all pages
-// - Centralized apiFetch (credentials included for session cookies)
-// - Toasts, confirm dialog helper
-// - Button disable/enable helpers
-// - Recent activity log (local only)
-// - Header injection (ticker + live clock + logout)
+// Unified frontend utilities (merged utils.js + page-utils.js)
+// Includes:
 // - DOM helpers
-// Place this file in public/js/ and include it FIRST on every page.
+// - API fetch wrapper (credentials included, backend-safe)
+// - Toast + confirm dialogs
+// - Button disable/enable
+// - Recent activity log
+// - Header ticker + clock
+// - Date/time + formatting helpers
+// - Query param + debounce
+// - HTML escape
+// Place in public/js/ and include FIRST on every page.
 
 (function () {
   "use strict";
@@ -14,8 +18,8 @@
   /* ============================
      DOM helpers
      ============================ */
-  window.qs = function (sel, ctx) { return (ctx || document).querySelector(sel); };
-  window.qsa = function (sel, ctx) { return Array.from((ctx || document).querySelectorAll(sel)); };
+  window.qs = (sel, ctx) => (ctx || document).querySelector(sel);
+  window.qsa = (sel, ctx) => Array.from((ctx || document).querySelectorAll(sel));
   window.el = function (tag, attrs = {}, children = []) {
     const d = document.createElement(tag);
     for (const k in attrs) {
@@ -40,45 +44,35 @@
      API fetch wrapper
      ============================ */
   window.apiFetch = async function (path, options = {}) {
-    // Ensure credentials are included for session cookies
     const baseOptions = { credentials: "include", headers: {} };
 
-    // If options.body is a plain object (and not FormData), stringfy as JSON
     let body = options.body;
     if (body && !(body instanceof FormData) && typeof body === "object") {
       baseOptions.headers["Content-Type"] = "application/json";
-      try {
-        body = JSON.stringify(body);
-      } catch (err) {
-        // If stringify fails, we'll pass through and let fetch fail
-      }
+      try { body = JSON.stringify(body); } catch (err) {}
     }
 
-    const fetchOpts = Object.assign({}, baseOptions, options, { body: body });
-    // Merge headers (options.headers override)
+    const fetchOpts = Object.assign({}, baseOptions, options, { body });
     fetchOpts.headers = Object.assign({}, baseOptions.headers, options.headers || {});
 
     const res = await fetch(path, fetchOpts);
 
-    // Try to parse JSON; fallback to text
     const txt = await res.text();
     let data = null;
-    try { data = txt ? JSON.parse(txt) : null; } catch (e) { data = txt; }
+    try { data = txt ? JSON.parse(txt) : null; } catch { data = txt; }
 
     if (!res.ok) {
-      // Normalize error message
       const msg = (data && (data.message || data.error)) || res.statusText || "Request failed";
       const err = new Error(msg);
       err.status = res.status;
       err.body = data;
       throw err;
     }
-
     return data;
   };
 
   /* ============================
-     Toast / Notification system
+     Toast / Notification
      ============================ */
   (function () {
     const CONTAINER_ID = "global-toast-container-v1";
@@ -112,7 +106,8 @@
         el.style.fontSize = "13px";
         el.style.lineHeight = "1.2";
         el.style.wordBreak = "break-word";
-        el.style.background = (type === "error") ? "#ffe6e6" : (type === "success") ? "#eaffea" : "#f4f4f4";
+        el.style.background = (type === "error") ? "#ffe6e6" :
+                              (type === "success") ? "#eaffea" : "#f4f4f4";
         el.style.color = "#222";
         el.textContent = message;
         c.insertBefore(el, c.firstChild);
@@ -120,37 +115,31 @@
           el.style.opacity = "0";
           setTimeout(() => el.remove(), 300);
         }, timeout);
-      } catch (e) {
-        console.warn("showToast fallback to alert:", message);
+      } catch {
         alert(message);
       }
     };
 
     window.showConfirm = function (message) {
-      // synchronous confirm wrapper (returns boolean)
       return window.confirm(message);
     };
   })();
 
   /* ============================
-     Button enable/disable (prevent double submits)
+     Button enable/disable
      ============================ */
   window.disableBtn = function (btn) {
     if (!btn) return;
-    try {
-      btn.dataset._wasDisabled = btn.disabled ? "1" : "0";
-      btn.disabled = true;
-      btn.style.opacity = 0.6;
-      btn.style.pointerEvents = "none";
-    } catch (e) {}
+    btn.dataset._wasDisabled = btn.disabled ? "1" : "0";
+    btn.disabled = true;
+    btn.style.opacity = 0.6;
+    btn.style.pointerEvents = "none";
   };
   window.enableBtn = function (btn) {
     if (!btn) return;
-    try {
-      if (btn.dataset._wasDisabled === "1") { btn.disabled = true; } else btn.disabled = false;
-      btn.style.opacity = 1;
-      btn.style.pointerEvents = "auto";
-    } catch (e) {}
+    btn.disabled = btn.dataset._wasDisabled === "1";
+    btn.style.opacity = 1;
+    btn.style.pointerEvents = "auto";
   };
 
   /* ============================
@@ -163,7 +152,7 @@
       arr.unshift({ time: new Date().toISOString(), msg: String(msg) });
       if (arr.length > 50) arr.length = 50;
       localStorage.setItem(key, JSON.stringify(arr));
-    } catch (e) { /* ignore */ }
+    } catch {}
   };
 
   window.getRecentActivity = function (limit = 5) {
@@ -171,7 +160,7 @@
       const key = "app_recent_activity_v1";
       const arr = JSON.parse(localStorage.getItem(key) || "[]");
       return arr.slice(0, limit);
-    } catch (e) { return []; }
+    } catch { return []; }
   };
 
   /* ============================
@@ -181,30 +170,20 @@
     try {
       const d = isoOrDate ? new Date(isoOrDate) : new Date();
       return d.toLocaleString();
-    } catch (e) {
+    } catch {
       return String(isoOrDate);
     }
   };
 
   /* ============================
-     Header + ticker + clock injector
-     ============================
-     Usage:
-       1) Add <div id="app-header"></div> near top of body in every HTML page
-       2) After utils.js is loaded, call:
-          initHeaderTickerClock({ schoolName: "Your School", mountId: "app-header" });
-     Behavior:
-       - shows School name, announcements ticker (fetched from /api/announcements),
-       - shows logged-in user's name + role (read from sessionStorage 'user' stored by auth.js),
-       - shows live clock and logout button
-  */
+     Header + ticker + clock
+     ============================ */
   window.initHeaderTickerClock = async function (opts = {}) {
     const schoolName = opts.schoolName || "School Portal";
     const mountId = opts.mountId || "app-header";
     const mount = document.getElementById(mountId);
     if (!mount) return;
 
-    // Base header layout
     mount.style.boxSizing = "border-box";
     mount.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid #e9e9e9;background:#ffffff">
@@ -220,35 +199,28 @@
       </div>
     `;
 
-    // Clock
     const clockEl = document.getElementById(`${mountId}-clock`);
     function tick() { clockEl.textContent = new Date().toLocaleString(); }
     tick(); setInterval(tick, 1000);
 
-    // Ticker: fetch announcements
     const tickerEl = document.getElementById(`${mountId}-ticker`);
     (async function loadTicker() {
       try {
         const anns = await apiFetch("/api/announcements");
         if (!Array.isArray(anns) || anns.length === 0) { tickerEl.textContent = "No announcements"; return; }
-        // compact text
         const txt = anns.map(a => `${a.title}: ${a.content}`).join(" \u2022 ");
         tickerEl.textContent = txt;
-        // marquee-ish: animate scroll using translateX
         let pos = 0;
-        const width = 10;
         setInterval(() => {
           pos += 1;
           tickerEl.style.transform = `translateX(-${pos}px)`;
-          // reset if moved too far — crude but effective
           if (pos > 2000) pos = 0;
         }, 150);
-      } catch (e) {
+      } catch {
         tickerEl.textContent = "Announcements unavailable";
       }
     })();
 
-    // Role display (from sessionStorage 'user')
     const roleEl = document.getElementById(`${mountId}-role`);
     try {
       const user = JSON.parse(sessionStorage.getItem("user") || "null");
@@ -258,23 +230,38 @@
       } else {
         roleEl.textContent = "Not logged in";
       }
-    } catch (e) {
+    } catch {
       roleEl.textContent = "Not logged in";
     }
 
-    // Logout handler
     const logoutBtn = document.getElementById(`${mountId}-logout`);
     logoutBtn.addEventListener("click", async () => {
-      try {
-        await apiFetch("/api/auth/logout", { method: "POST" });
-      } catch (e) { /* ignore errors */ }
+      try { await apiFetch("/api/auth/logout", { method: "POST" }); } catch {}
       sessionStorage.removeItem("user");
       window.location.href = "/login.html";
     });
   };
 
   /* ============================
-     small HTML escape helper
+     Query helpers
+     ============================ */
+  window.getQueryParam = function (name) {
+    return new URLSearchParams(window.location.search).get(name);
+  };
+
+  /* ============================
+     Debounce helper
+     ============================ */
+  window.debounce = function (fn, delay = 300) {
+    let timer;
+    return (...args) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn.apply(this, args), delay);
+    };
+  };
+
+  /* ============================
+     HTML escape
      ============================ */
   function escapeHtml(str) {
     if (!str && str !== 0) return "";
@@ -286,11 +273,4 @@
       .replace(/>/g, "&gt;");
   }
 
-  /* ============================
-     Export some helpers to window so other scripts can use them
-     ============================ */
-  // (they're already on window by assigning above)
-  // window.apiFetch, window.showToast, window.showConfirm, window.disableBtn, ...
-
-  // End utils.js IIFE
-})();
+})(); // End IIFE
