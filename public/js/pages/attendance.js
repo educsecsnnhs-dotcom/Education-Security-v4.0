@@ -1,57 +1,173 @@
 // public/js/pages/attendance.js
-(async function(){
-  const el=id=>document.getElementById(id);
-  async function loadSections(){
-    try{
-      const r = await PageUtils.fetchJson('/api/sections');
-      if(!r.ok){ el('attSection').innerHTML = '<option value="">No sections</option>'; return; }
-      const j = await r.json(); const items = j.data || j.sections || j || [];
-      const sel = el('attSection'); sel.innerHTML = '<option value="">Select section</option>';
-      items.forEach(it => { const o = document.createElement('option'); o.value = it._id||it.id; o.textContent = it.name || it.title || it; sel.appendChild(o); });
-    }catch(e){ el('attSection').innerHTML = '<option value="">No sections</option>'; }
+// Unified Attendance System: Student (view), Moderator (submit), Registrar/Admin (audit)
+
+document.addEventListener("DOMContentLoaded", () => {
+  Auth.requireLogin();
+  const user = Auth.getUser();
+
+  const attendanceTable = document.getElementById("attendanceTable");
+  const sectionSelect = document.getElementById("sectionSelect");
+  const dateInput = document.getElementById("attendanceDate");
+  const submitBtn = document.getElementById("submitAttendance");
+  const auditTable = document.getElementById("auditTable");
+
+  // 🔹 Default date → today
+  if (dateInput) {
+    const today = new Date().toISOString().split("T")[0];
+    dateInput.value = today;
   }
 
-  async function loadAttendance(){
-    const sec = el('attSection').value; const date = el('attDate').value;
-    const cont = el('attContainer');
-    if(!sec || !date){ cont.innerHTML = '<div class="muted small">Select section and date.</div>'; return; }
-    cont.innerHTML = '<div class="muted small">Loading attendance…</div>';
-    try{
-      // try common endpoints
-      const paths = ['/api/attendance?section='+encodeURIComponent(sec)+'&date='+encodeURIComponent(date), '/api/attendance/list?section='+encodeURIComponent(sec)+'&date='+encodeURIComponent(date)];
-      let res=null;
-      for(const p of paths){ try{ const r = await PageUtils.fetchJson(p); if(r.ok){ res = r; break; } }catch(e){} }
-      if(!res){ cont.innerHTML = '<div class="muted small">Attendance endpoint not available.</div>'; return; }
-      const j = await res.json(); const items = j.data || j.attendance || j.records || j || [];
-      if(!items || items.length===0){ cont.innerHTML = '<div class="muted small">No attendance records.</div>'; return; }
-      cont.innerHTML = '';
-      items.forEach(row=>{
-        const wr = document.createElement('div'); wr.className='announcement';
-        const name = row.studentName || row.name || (row.student && row.student.name) || '';
-        const status = row.status || row.present ? 'Present' : 'Absent';
-        wr.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><div><div style="font-weight:600">${PageUtils.escapeHtml(name)}</div><div class="small muted">${PageUtils.escapeHtml(row._id||row.id||'')}</div></div><div><select class="attSel"><option value="present" ${status==='Present'?'selected':''}>Present</option><option value="absent" ${status==='Absent'?'selected':''}>Absent</option></select></div></div>`;
-        cont.appendChild(wr);
+  /**
+   * Student: View own attendance
+   */
+  async function loadStudentAttendance() {
+    try {
+      const logs = await apiFetch("/api/attendance/my", { credentials: "include" });
+      attendanceTable.innerHTML = "";
+
+      if (!logs || !logs.length) {
+        attendanceTable.innerHTML = `<tr><td colspan="3">No attendance records found ✅</td></tr>`;
+        return;
+      }
+
+      logs.forEach((log) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${new Date(log.date).toLocaleDateString()}</td>
+          <td>${log.section?.name || "N/A"}</td>
+          <td>${log.status}</td>
+        `;
+        attendanceTable.appendChild(row);
       });
-      // add save button
-      const save = document.createElement('button'); save.className='btn'; save.textContent='Save attendance'; save.style.marginTop='12px';
-      save.addEventListener('click', async ()=>{
-        const rows = Array.from(cont.querySelectorAll('.announcement'));
-        const payload = [];
-        rows.forEach((r,idx)=>{
-          const id = (j.data||j.attendance||j)[idx]._id || (j.data||j.attendance||j)[idx].id;
-          const sel = r.querySelector('.attSel'); payload.push({ id, status: sel.value });
+    } catch (err) {
+      console.error("Error loading student attendance:", err);
+      attendanceTable.innerHTML = `<tr><td colspan="3">⚠️ Failed to load attendance</td></tr>`;
+    }
+  }
+
+  /**
+   * Moderator: Load section students for marking attendance
+   */
+  async function loadSectionStudents(sectionId, date) {
+    try {
+      const section = await apiFetch(`/api/attendance/section/${sectionId}?date=${date}`, { credentials: "include" });
+      attendanceTable.innerHTML = "";
+
+      if (!section.students || !section.students.length) {
+        attendanceTable.innerHTML = `<tr><td colspan="3">No students found</td></tr>`;
+        return;
+      }
+
+      section.students.forEach((s) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${s.lrn || "—"}</td>
+          <td>${s.fullName || s.name}</td>
+          <td>
+            <select data-id="${s._id}" class="statusSelect">
+              <option value="Present">Present</option>
+              <option value="Absent">Absent</option>
+              <option value="Late">Late</option>
+              <option value="Excused">Excused</option>
+            </select>
+          </td>
+        `;
+        attendanceTable.appendChild(row);
+      });
+    } catch (err) {
+      console.error("Error loading section students:", err);
+      attendanceTable.innerHTML = `<tr><td colspan="3">⚠️ Failed to load section data</td></tr>`;
+    }
+  }
+
+  /**
+   * Moderator: Submit attendance
+   */
+  async function submitAttendance() {
+    const sectionId = sectionSelect.value;
+    const date = dateInput.value;
+
+    if (!sectionId || !date) {
+      return alert("⚠️ Please select section and date");
+    }
+
+    const records = [];
+    document.querySelectorAll(".statusSelect").forEach((sel) => {
+      records.push({ studentId: sel.dataset.id, status: sel.value });
+    });
+
+    try {
+      await apiFetch("/api/attendance/submit", {
+        method: "POST",
+        credentials: "include",
+        body: JSON.stringify({ sectionId, date, records }),
+      });
+      alert("✅ Attendance submitted successfully");
+    } catch (err) {
+      console.error("Submit attendance error:", err);
+      alert("❌ Failed to submit attendance");
+    }
+  }
+
+  /**
+   * Registrar/Admin: Audit attendance logs
+   */
+  async function loadAudit() {
+    try {
+      const logs = await apiFetch("/api/attendance/audit", { credentials: "include" });
+      auditTable.innerHTML = "";
+
+      if (!logs || !logs.length) {
+        auditTable.innerHTML = `<tr><td colspan="4">No logs found</td></tr>`;
+        return;
+      }
+
+      logs.forEach((log) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${new Date(log.date).toLocaleDateString()}</td>
+          <td>${log.section?.name || "N/A"}</td>
+          <td>${log.student?.fullName || "N/A"}</td>
+          <td>${log.status}</td>
+        `;
+        auditTable.appendChild(row);
+      });
+    } catch (err) {
+      console.error("Error loading audit logs:", err);
+      auditTable.innerHTML = `<tr><td colspan="4">⚠️ Failed to load logs</td></tr>`;
+    }
+  }
+
+  // 🔹 Role-based execution
+  if (user.role === "Student") {
+    loadStudentAttendance();
+  }
+
+  if (user.role === "Moderator") {
+    // Load moderator’s sections into dropdown
+    apiFetch("/api/attendance/mySections", { credentials: "include" })
+      .then((sections) => {
+        sectionSelect.innerHTML = `<option value="">-- Select Section --</option>`;
+        sections.forEach((sec) => {
+          sectionSelect.innerHTML += `<option value="${sec._id}">${sec.name}</option>`;
         });
-        try{
-          const r2 = await PageUtils.fetchJson('/api/attendance/mark', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ date, section: sec, records: payload }) });
-          if(r2.ok) { alert('Saved'); } else { alert('Save failed'); }
-        }catch(e){ console.error(e); alert('Error'); }
+      })
+      .catch((err) => {
+        console.error("Error loading sections:", err);
       });
-      cont.appendChild(save);
-    }catch(e){ console.error(e); cont.innerHTML = '<div class="muted small">Failed to load attendance.</div>'; }
+
+    sectionSelect.addEventListener("change", () => {
+      if (sectionSelect.value) loadSectionStudents(sectionSelect.value, dateInput.value);
+    });
+
+    dateInput.addEventListener("change", () => {
+      if (sectionSelect.value) loadSectionStudents(sectionSelect.value, dateInput.value);
+    });
+
+    submitBtn.addEventListener("click", submitAttendance);
   }
 
-  el('loadAtt').addEventListener('click', loadAttendance);
-  el('logoutBtn')?.addEventListener('click', async ()=>{ try{ await PageUtils.fetchJson('/api/auth/logout',{method:'POST'}); }catch(e){} location.href='/html/login.html'; });
-
-  await loadSections();
-})();
+  if (["Registrar", "Admin", "SuperAdmin"].includes(user.role)) {
+    loadAudit();
+  }
+});
