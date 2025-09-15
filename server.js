@@ -25,8 +25,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // Allow frontend (any domain) to send cookies
 app.use(cors({
-  origin: true,
-  credentials: true,
+  origin: true,          // echo back request origin
+  credentials: true,     // allow cookies
 }));
 
 // ------------------------------
@@ -54,6 +54,11 @@ mongoose.connection.on('disconnected', () => {
 });
 
 // ------------------------------
+// Trust Proxy (for HTTPS on Render/Heroku)
+// ------------------------------
+app.set('trust proxy', 1);
+
+// ------------------------------
 // Session Setup (MongoDB-backed)
 // ------------------------------
 app.use(session({
@@ -72,8 +77,8 @@ app.use(session({
   }),
   cookie: {
     httpOnly: true,
-    secure: true,       // always secure in cloud (requires HTTPS)
-    sameSite: 'none',   // allow cross-domain cookies
+    secure: process.env.NODE_ENV === 'production', // HTTPS only in prod
+    sameSite: 'none',   // allow cross-site cookies
     maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
   },
 }));
