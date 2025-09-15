@@ -1,5 +1,5 @@
-// server.js 
-// Rebuilt server with improved Mongo connection, session handling, and route mounting
+// server.js
+// Cloud-ready server with MongoDB session store, secure cookies, and route mounting
 
 require('dotenv').config();
 const express = require('express');
@@ -22,43 +22,48 @@ fs.mkdirSync(path.join(ROOT, 'exports'), { recursive: true });
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cors({ origin: true, credentials: true }));
+
+// Allow frontend (any domain) to send cookies
+app.use(cors({
+  origin: true,
+  credentials: true,
+}));
 
 // ------------------------------
 // MongoDB Connection
 // ------------------------------
-if (process.env.MONGO_URI) {
-  mongoose.connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-    serverSelectionTimeoutMS: 10000, // fail fast
-  });
-
-  mongoose.connection.on('connected', () => {
-    console.log('✅ MongoDB connected');
-  });
-
-  mongoose.connection.on('error', (err) => {
-    console.error('❌ MongoDB connection error:', err.message);
-  });
-
-  mongoose.connection.on('disconnected', () => {
-    console.warn('⚠️ MongoDB disconnected, attempting reconnect...');
-  });
-} else {
-  console.warn('⚠️ No MONGO_URI provided, database features disabled.');
+if (!process.env.MONGO_URI) {
+  console.error('❌ MONGO_URI missing in .env. Exiting...');
+  process.exit(1);
 }
 
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+  serverSelectionTimeoutMS: 10000,
+});
+
+mongoose.connection.on('connected', () => {
+  console.log('✅ MongoDB connected');
+});
+mongoose.connection.on('error', (err) => {
+  console.error('❌ MongoDB error:', err.message);
+});
+mongoose.connection.on('disconnected', () => {
+  console.warn('⚠️ MongoDB disconnected, retrying...');
+});
+
 // ------------------------------
-// Session Setup
+// Session Setup (MongoDB-backed)
 // ------------------------------
 app.use(session({
   name: process.env.SESSION_NAME || 'sid',
   secret: process.env.SESSION_SECRET || 'change_me_now',
   resave: false,
   saveUninitialized: false,
+  rolling: true, // refresh expiry on each request
   store: MongoStore.create({
-    mongoUrl: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/sessions',
+    mongoUrl: process.env.MONGO_URI,
     ttl: 60 * 60 * 24 * 7, // 7 days
     autoRemove: 'native',
     crypto: {
@@ -67,13 +72,13 @@ app.use(session({
   }),
   cookie: {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production', // HTTPS only in production
-    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+    secure: true,       // always secure in cloud (requires HTTPS)
+    sameSite: 'none',   // allow cross-domain cookies
     maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-  }
+  },
 }));
 
-// Debug session middleware (can be silenced later)
+// Debug session middleware (remove later if noisy)
 app.use((req, res, next) => {
   if (!req.session) {
     console.error('⚠️ Session not available!');
@@ -92,7 +97,6 @@ if (fs.existsSync(routesDir)) {
     const router = require(path.join(routesDir, f));
     app.use('/api' + base, router);
 
-    // mount plural form if different
     const plural = '/api/' + (base.slice(1) + 's');
     if (plural !== '/api' + base) {
       app.use(plural, router);
@@ -100,7 +104,7 @@ if (fs.existsSync(routesDir)) {
   });
 }
 
-// Compat routes for frontend-expecting endpoints
+// Compat routes for old frontend endpoints
 try {
   const compat = require('./routes/compat');
   app.use('/api', compat);
@@ -140,7 +144,6 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
 
-  // seed SuperAdmin user
   try {
     const seed = require('./seedAdmin');
     if (typeof seed === 'function') {
