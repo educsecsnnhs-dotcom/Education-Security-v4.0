@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>School Management System</title>
+  <link rel="stylesheet" href="../css/index.css">
+  <script src="js/auth.js" defer></script>
+  <script src="js/index.js" defer></script>
+</head>
+<body class="splash-body">
+  <div class="splash-container">
+    <img src="images/school-logo.png" alt="School Logo" class="splash-logo">
+    <h1>Welcome to <span class="highlight">SNNHS SCHOOL PORTAL</span></h1>
+    <p class="redirect-text">Redirecting you to the right page...</p>
+    <div class="loader"></div>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", async () => {
+      try {
+        // ✅ Ask server if session exists
+        const res = await fetch("/api/auth/me", { credentials: "include" });
+
+        setTimeout(() => {
+          if (res.ok) {
+            window.location.href = "welcome.html";
+          } else {
+            window.location.href = "login.html";
+          }
+        }, 1500); // ⏳ small delay for splash effect
+      } catch (err) {
+        console.error("Auth check failed:", err);
+        window.location.href = "login.html";
+      }
+    });
+  </script>
+</body>
+</html>

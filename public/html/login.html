@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login</title>
+  <link rel="stylesheet" href="../css/login.css" />
+</head>
+<body>
+  <div class="form-container">
+    <h2>Login</h2>
+    <form id="loginForm">
+      <label for="email">Email</label>
+      <input type="email" id="email" required />
+
+      <label for="password">Password</label>
+      <div class="password-wrapper">
+        <input type="password" id="password" required />
+        <button type="button" id="togglePassword" class="toggle-btn">👁️</button>
+      </div>
+
+      <button type="submit">Login</button>
+    </form>
+
+    <p>Don't have an account? <a href="register.html">Register here</a></p>
+  </div>
+
+  <!-- JS -->
+  <script src="../js/login.js"></script>
+  <script>
+    // 👁️ toggle password visibility
+    document.addEventListener("DOMContentLoaded", () => {
+      const toggle = document.getElementById("togglePassword");
+      const password = document.getElementById("password");
+
+      toggle.addEventListener("click", () => {
+        const type =
+          password.getAttribute("type") === "password" ? "text" : "password";
+        password.setAttribute("type", type);
+        toggle.textContent = type === "password" ? "👁️" : "🙈";
+      });
+    });
+  </script>
+</body>
+</html>
