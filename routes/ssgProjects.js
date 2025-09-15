@@ -1,36 +1,15 @@
 // routes/ssgProjects.js
-// Handles SSG projects (CRUD)
-
 const express = require('express');
 const router = express.Router();
-const mongoose = require('mongoose');
+const Project = require('../models/SSGProject');
 
-// ------------------------------
-// Mongoose Schema
-// ------------------------------
-const ProjectSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  description: { type: String },
-  status: { type: String, enum: ['Planned', 'Ongoing', 'Completed'], default: 'Planned' },
-  createdBy: { type: String, required: true }, // username or userId
-  createdAt: { type: Date, default: Date.now }
-});
-
-const Project = mongoose.model('SSGProject', ProjectSchema);
-
-// ------------------------------
 // Middleware: ensure logged-in
-// ------------------------------
 function requireAuth(req, res, next) {
   if (!req.session.user) {
     return res.status(401).json({ message: 'Unauthorized' });
   }
   next();
 }
-
-// ------------------------------
-// Routes
-// ------------------------------
 
 // GET all projects
 router.get('/', async (req, res) => {
