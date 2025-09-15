@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SSG Projects</title>
+  <link rel="stylesheet" href="../css/ssg-projects.css">
+</head>
+<body>
+  <h1>🏛️ SSG Projects</h1>
+
+  <div id="projectsList"></div>
+
+  <script>
+    async function loadProjects() {
+      try {
+        const res = await fetch("/api/ssg/projects", { credentials: "include" });
+        const data = await res.json();
+
+        const list = document.getElementById("projectsList");
+        list.innerHTML = "";
+
+        if (!data.length) {
+          list.innerHTML = "<p>No projects found.</p>";
+          return;
+        }
+
+        data.forEach(p => {
+          const div = document.createElement("div");
+          div.className = "project";
+          div.innerHTML = `
+            <h3>${p.name}</h3>
+            <p>${p.description}</p>
+            <small>Status: ${p.status}</small>
+          `;
+          list.appendChild(div);
+        });
+      } catch (err) {
+        console.error("Error loading projects:", err);
+      }
+    }
+    loadProjects();
+  </script>
+</body>
+</html>
