@@ -1,3 +1,4 @@
+// public/js/register.js
 document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("registerForm");
   if (!form) return;
@@ -27,6 +28,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       alert("✅ Registration successful! Please log in.");
+      // ✅ Redirect to login page
       window.location.href = "html/login.html";
     } catch (err) {
       console.error("Registration error:", err);
@@ -37,9 +39,11 @@ document.addEventListener("DOMContentLoaded", () => {
   // Password toggle
   const toggle = document.getElementById("togglePassword");
   const passwordInput = document.getElementById("password");
-  toggle.addEventListener("click", () => {
-    const type = passwordInput.type === "password" ? "text" : "password";
-    passwordInput.type = type;
-    toggle.textContent = type === "password" ? "👁️" : "🙈";
-  });
+  if (toggle && passwordInput) {
+    toggle.addEventListener("click", () => {
+      const type = passwordInput.type === "password" ? "text" : "password";
+      passwordInput.type = type;
+      toggle.textContent = type === "password" ? "👁️" : "🙈";
+    });
+  }
 });
