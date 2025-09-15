@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SSG Announcements</title>
+  <link rel="stylesheet" href="../css/ssg-announcement.css">
+</head>
+<body>
+  <h1>📢 SSG Announcements</h1>
+
+  <div id="announcementsList"></div>
+
+  <script>
+    async function loadAnnouncements() {
+      try {
+        const res = await fetch("/api/ssg/announcements", { credentials: "include" });
+        const data = await res.json();
+
+        const list = document.getElementById("announcementsList");
+        list.innerHTML = "";
+
+        if (!data.length) {
+          list.innerHTML = "<p>No announcements yet.</p>";
+          return;
+        }
+
+        data.forEach(a => {
+          const div = document.createElement("div");
+          div.className = "announcement";
+          div.innerHTML = `
+            <h3>${a.title}</h3>
+            <p>${a.content}</p>
+            <small>Posted on ${new Date(a.createdAt).toLocaleString()}</small>
+          `;
+          list.appendChild(div);
+        });
+      } catch (err) {
+        console.error("Error loading announcements:", err);
+      }
+    }
+    loadAnnouncements();
+  </script>
+</body>
+</html>
