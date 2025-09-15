@@ -1,4 +1,4 @@
-// public/js/role-management.js
+// public/js/pages/role-management.js
 // Final merged Role Management UI (aligned with backend).
 // - SuperAdmin: can assign/remove Registrar, Admin, Moderator, SSG, and impersonate users
 // - Registrar: can assign Moderator, Admin, SSG only (cannot remove, cannot assign Registrar/SuperAdmin)
