@@ -1,6 +1,4 @@
 // public/js/login.js
-import { caesarEncrypt, Auth } from "./auth.js";
-
 document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("loginForm");
   if (!form) return;
@@ -20,42 +18,17 @@ document.addEventListener("DOMContentLoaded", () => {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include", // keep session cookie
-        body: JSON.stringify({
-          email,
-          password: caesarEncrypt(password), // 🔐 match backend
-        }),
+        credentials: "include", // ensures session cookie
+        body: JSON.stringify({ email, password }), // backend hashes it
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Login failed");
-
-      // ✅ Save session in frontend
-      Auth.setUser(data.user);
-
-      // ✅ Redirect by role
-      switch (data.user.role) {
-        case "Registrar":
-          window.location.href = "/registrar.html";
-          break;
-        case "Admin":
-          window.location.href = "/admin.html";
-          break;
-        case "Moderator":
-          window.location.href = "/moderator.html";
-          break;
-        case "Student":
-          window.location.href = "/student.html";
-          break;
-        case "SSG":
-          window.location.href = "/ssg.html";
-          break;
-        case "SuperAdmin":
-          window.location.href = "/superadmin.html";
-          break;
-        default:
-          window.location.href = "/welcome.html";
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(errorText || "Login failed");
       }
+
+      // ✅ Always go to welcome page
+      window.location.href = "html/welcome.html";
     } catch (err) {
       console.error("Login error:", err);
       alert("❌ " + err.message);
