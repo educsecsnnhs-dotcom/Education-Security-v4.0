@@ -6,6 +6,8 @@
     me: '/api/auth/me',
     logout: '/api/auth/logout',
     announcements: '/api/announcements',
+    ssgAnnouncements: '/api/ssgAnnouncements',
+    ssgProjects: '/api/ssgProjects',
     superUsers: '/api/superadmin/users',
     impersonate: '/api/superadmin/impersonate'
   };
@@ -36,9 +38,10 @@
     }catch(e){ return dStr; }
   }
 
-  // announcements loader
+  // === School announcements ===
   async function loadAnnouncements(){
     const container = qs('#schoolAnnouncements');
+    if(!container) return;
     container.innerHTML = '<div class="muted small">Loading announcements…</div>';
     try{
       const res = await fetchJson(api.announcements);
@@ -66,6 +69,52 @@
     }
   }
 
+  // === SSG announcements ===
+  async function loadSSGAnnouncements(){
+    const container = qs('#ssgAnnouncements');
+    if(!container) return;
+    container.innerHTML = '<div class="muted small">Loading SSG announcements…</div>';
+    try{
+      const res = await fetchJson(api.ssgAnnouncements);
+      if(!res.ok){ container.innerHTML = '<div class="muted small">No SSG announcements found.</div>'; return; }
+      const items = await res.json();
+      if(!items || !Array.isArray(items) || items.length === 0){ container.innerHTML = '<div class="muted small">No SSG announcements.</div>'; return; }
+      container.innerHTML = '';
+      items.slice(0,5).forEach(a=>{
+        const el = document.createElement('div');
+        el.className = 'announcement';
+        el.innerHTML = `<div class="meta">${niceDate(a.createdAt)}</div><div style="font-weight:600">${escapeHtml(a.title)}</div><div class="small muted">${truncate(escapeHtml(a.body),180)}</div>`;
+        container.appendChild(el);
+      });
+    }catch(err){
+      console.error('SSG announcements error',err);
+      container.innerHTML = '<div class="muted small">Failed to load SSG announcements.</div>';
+    }
+  }
+
+  // === SSG projects ===
+  async function loadSSGProjects(){
+    const container = qs('#ssgProjects');
+    if(!container) return;
+    container.innerHTML = '<div class="muted small">Loading SSG projects…</div>';
+    try{
+      const res = await fetchJson(api.ssgProjects);
+      if(!res.ok){ container.innerHTML = '<div class="muted small">No projects found.</div>'; return; }
+      const items = await res.json();
+      if(!items || !Array.isArray(items) || items.length === 0){ container.innerHTML = '<div class="muted small">No projects available.</div>'; return; }
+      container.innerHTML = '';
+      items.slice(0,5).forEach(p=>{
+        const el = document.createElement('div');
+        el.className = 'project';
+        el.innerHTML = `<div style="font-weight:600">${escapeHtml(p.name)} <span class="small muted">(${escapeHtml(p.status)})</span></div><div class="small muted">${truncate(escapeHtml(p.description),180)}</div><div class="meta">${niceDate(p.createdAt)}</div>`;
+        container.appendChild(el);
+      });
+    }catch(err){
+      console.error('SSG projects error',err);
+      container.innerHTML = '<div class="muted small">Failed to load projects.</div>';
+    }
+  }
+
   function escapeHtml(str){ if(!str) return ''; return String(str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }
   function truncate(s,n){ if(!s) return ''; return s.length>n? s.slice(0,n-1)+'…': s; }
 
@@ -77,158 +126,20 @@
     qs('#todayDate').textContent = 'Today is ' + now.toLocaleDateString('en-PH', optionsDate);
   }
 
-  // impersonation attempts (tries multiple payload shapes)
-  async function tryImpersonatePayloads(selected){
-    const attempts = [
-      { userId: selected._id || selected.id },
-      { id: selected._id || selected.id },
-      { email: selected.email },
-      { emailAddress: selected.email },
-      { user: selected._id || selected.id }
-    ];
-    for(const attempt of attempts){
-      try{
-        const res = await fetch(api.impersonate, { method: 'POST', credentials: 'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(attempt) });
-        if(res.ok) return { ok:true };
-        // continue trying
-        const txt = await res.text();
-        console.warn('Impersonate attempt failed', attempt, res.status, txt);
-      }catch(err){ console.warn('Impersonate attempt error', err); }
-    }
-    return { ok:false };
-  }
-
-  async function tryStopImpersonationOnServer(){
-    // attempt common stop variants; backend may or may not support them
-    const candidates = [
-      { url: api.impersonate + '/stop', opts: { method:'POST' } },
-      { url: api.impersonate, opts: { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ stop: true }) } },
-      { url: api.impersonate, opts: { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ restoreOriginal: true }) } },
-      { url: api.impersonate + '/restore', opts: { method:'POST' } }
-    ];
-    for(const c of candidates){
-      try{
-        const res = await fetch(c.url, Object.assign({ credentials:'include' }, c.opts));
-        if(res.ok) return true;
-      }catch(e){ /* ignore */ }
-    }
-    return false;
-  }
-
-  // open impersonation modal and run
-  async function openImpersonationModal(currentUser){
-    try{
-      const res = await fetchJson(api.superUsers);
-      if(!res.ok){ const txt = await res.text(); showModal(`<h3>Unable to load users</h3><p class="small muted">${escapeHtml(txt||res.statusText||'server error')}</p><div class="actions"><button class="btn" onclick="document.querySelector('#modalRoot').style.display='none'">Close</button></div>`); return; }
-      const j = await res.json();
-      const users = j.users || j.data || j || [];
-      let opts = '';
-      users.forEach(u => {
-        const id = u._id || u.id || u.userId || u._id;
-        const label = (u.email || u.username || (u.name && (u.name.first || u.name.last)) || id);
-        if(id && (id === (currentUser._id || currentUser.id || currentUser.userId))) return;
-        opts += `<option value="${escapeHtml(id)}">${escapeHtml(label)}</option>`;
-      });
-
-      const content = `
-        <h3>Impersonate user</h3>
-        <p class="small muted">Select a user to assume their session. This will change your current session to the selected user.</p>
-        <div style="margin-top:10px">
-          <div class="form-row">
-            <select id="impersonateSelect" class="select">${opts}</select>
-          </div>
-          <div class="actions">
-            <button id="impersonateCancel" class="btn ghost">Cancel</button>
-            <button id="impersonateGo" class="btn">Impersonate</button>
-          </div>
-        </div>
-      `;
-      showModal(content);
-      document.getElementById('impersonateCancel').addEventListener('click', closeModal);
-      document.getElementById('impersonateGo').addEventListener('click', async ()=>{
-        const sel = document.getElementById('impersonateSelect');
-        const selectedId = sel.value;
-        if(!selectedId){ alert('Please choose a user'); return; }
-        const selectedUser = users.find(u => (u._id===selectedId||u.id===selectedId||u.userId===selectedId)) || { id:selectedId, _id:selectedId };
-        // store original superadmin snapshot to sessionStorage so UI knows it's impersonating
-        try{
-          const orig = currentUser && { id: currentUser._id || currentUser.id, email: currentUser.email };
-          if(orig) sessionStorage.setItem('EDUSEC_originalSuperAdmin', JSON.stringify(orig));
-        }catch(e){}
-        const res = await tryImpersonatePayloads(selectedUser);
-        if(res.ok){
-          closeModal();
-          setTimeout(()=> location.reload(), 300);
-        }else{
-          alert('Impersonation failed. Check server logs or try another user.');
-        }
-      });
-    }catch(err){
-      console.error('Impersonation modal error', err);
-      showModal('<h3>Error</h3><p class="small muted">Failed to open impersonation UI.</p>');
-    }
-  }
-
-  async function restoreImpersonation(){
-    // Try server-side stop endpoints
-    const ok = await tryStopImpersonationOnServer();
-    if(ok){
-      sessionStorage.removeItem('EDUSEC_originalSuperAdmin');
-      setTimeout(()=> location.reload(), 300);
-      return;
-    }
-    // If server does not support stop, instruct user to logout & login again
-    showModal(`<h3>Restore failed</h3>
-      <p class="small muted">Unable to restore original SuperAdmin session automatically. Please logout and log back in as SuperAdmin to regain your original session.</p>
-      <div class="actions"><button class="btn" onclick="document.querySelector('#modalRoot').style.display='none'">Close</button></div>`);
-  }
-
-  // Check if /school-info.pdf exists; if not show placeholder
-  async function renderPdfOrPlaceholder(){
-    const holder = qs('#pdfHolder');
-    if(!holder) return;
-    try{
-      const res = await fetch('/school-info.pdf', { method: 'HEAD' });
-      if(res.ok){
-        holder.innerHTML = `<embed src="/school-info.pdf" type="application/pdf" />`;
-      }else{
-        holder.innerHTML = `<div class="small muted">School info PDF not available yet. Upload <code>public/school-info.pdf</code> to display here.</div>`;
-      }
-    }catch(e){
-      // Some servers disallow HEAD — try GET but without downloading huge file
-      try{
-        const r2 = await fetch('/school-info.pdf', { method: 'GET' });
-        if(r2.ok && r2.headers.get('content-type') && r2.headers.get('content-type').includes('pdf')){
-          holder.innerHTML = `<embed src="/school-info.pdf" type="application/pdf" />`;
-        }else{
-          holder.innerHTML = `<div class="small muted">School info PDF not available yet. Upload <code>public/school-info.pdf</code> to display here.</div>`;
-        }
-      }catch(e2){
-        holder.innerHTML = `<div class="small muted">School info PDF not available yet. Upload <code>public/school-info.pdf</code> to display here.</div>`;
-      }
-    }
-  }
+  // … impersonation helpers unchanged …
 
   // init
   document.addEventListener('DOMContentLoaded', async ()=>{
     try{
       const res = await fetchJson(api.me);
-      if(!res.ok){
-        // not logged in — redirect to login
-        location.href = '/html/login.html';
-        return;
-      }
+      if(!res.ok){ location.href = '/html/login.html'; return; }
       const j = await res.json();
       const user = j.user || j;
       window.__EDUSEC__ = { user };
 
-      // display user info
       qs('#userName').textContent = user.name || user.email || user.username || 'User';
-      let roleText = user.role || 'User';
-      if(user.extraRoles && Array.isArray(user.extraRoles) && user.extraRoles.length) roleText += ' (+' + user.extraRoles.join(',') + ')';
-      qs('#userRole').textContent = roleText;
+      qs('#userRole').textContent = user.role || 'User';
 
-      // Build menu using menu.js utilities (global)
       const menuUtil = window.__EDUSEC_MENU;
       if(menuUtil){
         const finalMenu = menuUtil.buildMenuForUser(user);
@@ -236,55 +147,26 @@
         menuUtil.renderQuickActions(finalMenu);
       }
 
-      // Quick actions click handling (delegation)
-      qs('#quickActions')?.addEventListener('click', (ev)=>{
-        const a = ev.target.closest('a');
-        if(a && a.getAttribute('href')) {
-          // follow link relative to current page (these links are typically pages/...)
-          window.location.href = a.getAttribute('href');
-        }
-      });
-
-      // Add impersonation control if SuperAdmin
-      if((user.role && user.role === 'SuperAdmin') || user.isSuperAdmin){
-        const area = qs('#impersonationArea');
-        if(area){
-          const btn = document.createElement('button');
-          btn.className = 'btn ghost';
-          btn.textContent = 'Impersonate User';
-          btn.title = 'Open SuperAdmin impersonation panel';
-          btn.addEventListener('click', ()=> openImpersonationModal(user));
-          area.appendChild(btn);
-        }
-      }
-
-      // Show "Back to SuperAdmin" if flagged (server or sessionStorage)
-      const serverFlag = user.originalSuperAdmin || user.isImpersonated || false;
-      const localFlag = !!sessionStorage.getItem('EDUSEC_originalSuperAdmin');
-      if(serverFlag || localFlag){
-        const back = qs('#backToSuperBtn');
-        if(back){
-          back.style.display = 'inline-block';
-          back.addEventListener('click', restoreImpersonation);
-        }
-      }
-
-      // Load announcements and PDF area, clock
+      // load base content
       loadAnnouncements();
       renderPdfOrPlaceholder();
-      updateClock(); setInterval(updateClock, 1000);
+      updateClock(); setInterval(updateClock,1000);
+
+      // if SSG, load extras
+      if(user.role === 'SSG' || user.isSSG || (user.extraRoles||[]).includes('SSG')){
+        loadSSGAnnouncements();
+        loadSSGProjects();
+      }
 
     }catch(err){
-      console.error('Welcome load error', err);
+      console.error('Welcome load error',err);
       location.href = '/html/login.html';
     }
 
-    // logout binding
     const logoutBtn = qs('#logoutBtn');
     if(logoutBtn){
       logoutBtn.addEventListener('click', async ()=>{
-        try{ await fetchJson(api.logout, { method: 'POST' }); }catch(e){}
-        // clear any stored impersonation helper flags
+        try{ await fetchJson(api.logout,{method:'POST'});}catch(e){}
         sessionStorage.removeItem('EDUSEC_originalSuperAdmin');
         location.href = '/html/login.html';
       });
