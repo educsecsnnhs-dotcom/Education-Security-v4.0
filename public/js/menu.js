@@ -1,7 +1,4 @@
 // public/js/menu.js
-// Centralized menu definitions & rendering utilities
-// These functions are global so welcome.js can call them.
-
 window.__EDUSEC_MENU = (function(){
   const menus = {
     User: [
@@ -31,7 +28,8 @@ window.__EDUSEC_MENU = (function(){
     SuperAdmin: [],
     SSG: [
       { name: "SSG Management", link: "pages/ssg.html", icon: "🏛️" },
-      { name: "Announcements", link: "pages/announcements.html", icon: "📢" },
+      { name: "SSG Announcements", link: "pages/ssg-announcements.html", icon: "📢" },
+      { name: "SSG Projects", link: "pages/ssg-projects.html", icon: "🛠️" }
     ],
   };
 
