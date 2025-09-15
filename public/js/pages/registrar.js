@@ -1,86 +1,230 @@
-// public/js/pages/registrar.js
-(async function(){
-  const endpoints = {
-    enrollees: ['/api/registrar/enrollees','/api/enrollment/enrollees'],
-    enroll: '/api/registrar/enroll', // POST { id } -> move to enrolled
-    enrolled: ['/api/registrar/enrolled','/api/registrar/enrolledList'],
-    reject: '/api/registrar/reject'
-  };
-  const el=id=>document.getElementById(id);
+// public/js/registrar.js
+// Registrar Dashboard (Cloud + MongoDB + Session-based auth)
+//
+// Features:
+// - View enrollment stats
+// - View pending enrollees, approve/reject with section assignment
+// - Manage sections (create/list)
+// - View archives & restore
+// - Log registrar actions locally in activity log
 
-  async function tryGet(paths){
-    for(const p of paths){
-      try{ const r = await PageUtils.fetchJson(p); if(r.ok) return r; }catch(e){}
+document.addEventListener("DOMContentLoaded", () => {
+  checkAccess(["Registrar"], { redirectTo: "/welcome.html" });
+
+  const enrolledCountEl = document.getElementById("enrolledCount");
+  const pendingCountEl = document.getElementById("pendingCount");
+  const pendingTable = document.getElementById("pendingTable");
+  const sectionList = document.getElementById("sectionList");
+  const sectionForm = document.getElementById("sectionForm");
+  const archiveList = document.getElementById("archiveList");
+  const logList = document.getElementById("activityLog");
+
+  /* -------------------- Activity Log -------------------- */
+  function logAction(action) {
+    const logs = JSON.parse(localStorage.getItem("registrarLogs") || "[]");
+    const entry = {
+      action,
+      time: new Date().toLocaleString(),
+    };
+    logs.unshift(entry);
+    localStorage.setItem("registrarLogs", JSON.stringify(logs));
+    renderLogs();
+  }
+
+  function renderLogs() {
+    logList.innerHTML = "";
+    const logs = JSON.parse(localStorage.getItem("registrarLogs") || "[]");
+    if (!logs.length) {
+      logList.innerHTML = "<li>No actions logged yet</li>";
+      return;
     }
-    return null;
+    logs.forEach((log) => {
+      const li = document.createElement("li");
+      li.textContent = `[${log.time}] ${log.action}`;
+      logList.appendChild(li);
+    });
   }
 
-  async function loadEnrollees(){
-    const cont = el('enrolleeList');
-    cont.innerHTML = '<div class="muted small">Loading enrollees…</div>';
-    try{
-      const r = await tryGet(endpoints.enrollees);
-      if(!r){ cont.innerHTML = '<div class="muted small">No enrollee endpoint available</div>'; return; }
-      const j = await r.json();
-      const items = j.data || j.enrollees || j || [];
-      if(!items || items.length===0){ cont.innerHTML = '<div class="muted small">No enrollees.</div>'; return; }
-      cont.innerHTML = '';
-      items.forEach(i=>{
-        const row = document.createElement('div'); row.className='announcement';
-        const name = i.name || i.fullName || `${i.firstName||''} ${i.lastName||''}`;
-        row.innerHTML = `<div style="font-weight:600">${PageUtils.escapeHtml(name)}</div><div class="small muted">ID: ${PageUtils.escapeHtml(i._id||i.id||'')}</div>`;
-        const actions = document.createElement('div'); actions.style.marginTop='8px';
-        const accept = document.createElement('button'); accept.className='btn ghost'; accept.textContent='Accept';
-        const reject = document.createElement('button'); reject.className='btn ghost'; reject.textContent='Reject';
-        accept.addEventListener('click', ()=> acceptEnrollee(i));
-        reject.addEventListener('click', ()=> rejectEnrollee(i));
-        actions.appendChild(accept); actions.appendChild(reject);
-        row.appendChild(actions);
-        cont.appendChild(row);
+  /* -------------------- Stats -------------------- */
+  async function loadStats() {
+    try {
+      const stats = await apiFetch("/api/registrar/stats");
+      enrolledCountEl.textContent = stats.enrolled || 0;
+      pendingCountEl.textContent = stats.pending || 0;
+    } catch (err) {
+      console.error("Error loading stats:", err);
+      enrolledCountEl.textContent = "⚠️";
+      pendingCountEl.textContent = "⚠️";
+    }
+  }
+
+  /* -------------------- Pending Enrollees -------------------- */
+  async function loadPending() {
+    pendingTable.innerHTML = `<tr><td colspan="7">Loading...</td></tr>`;
+    try {
+      const enrollees = await apiFetch("/api/registrar/enrollment/pending");
+      pendingTable.innerHTML = "";
+
+      if (!enrollees.length) {
+        pendingTable.innerHTML = `<tr><td colspan="7">✅ No pending enrollees</td></tr>`;
+        return;
+      }
+
+      enrollees.forEach((enrollee) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${enrollee.fullName}</td>
+          <td>${enrollee.lrn}</td>
+          <td>${enrollee.gradeLevel}</td>
+          <td>${enrollee.strand || "-"}</td>
+          <td>${enrollee.schoolYear}</td>
+          <td>
+            <input type="text" id="section-${enrollee._id}" placeholder="Assign section">
+          </td>
+          <td>
+            <button data-id="${enrollee._id}" class="approveBtn">✅ Approve</button>
+            <button data-id="${enrollee._id}" class="rejectBtn">❌ Reject</button>
+          </td>
+        `;
+        pendingTable.appendChild(tr);
       });
-    }catch(e){ console.error(e); cont.innerHTML = '<div class="muted small">Failed to load enrollees.</div>'; }
-  }
 
-  async function loadEnrolled(){
-    const cont = el('enrolledList');
-    cont.innerHTML = '<div class="muted small">Loading enrolled students…</div>';
-    try{
-      const r = await tryGet(endpoints.enrolled);
-      if(!r){ cont.innerHTML = '<div class="muted small">No enrolled endpoint available</div>'; return; }
-      const j = await r.json();
-      const items = j.data || j.enrolled || j || [];
-      if(!items || items.length===0){ cont.innerHTML = '<div class="muted small">No enrolled students.</div>'; return; }
-      cont.innerHTML = '';
-      items.forEach(i=>{
-        const row = document.createElement('div'); row.className='announcement';
-        const name = i.name || i.fullName || `${i.firstName||''} ${i.lastName||''}`;
-        row.innerHTML = `<div style="font-weight:600">${PageUtils.escapeHtml(name)}</div><div class="small muted">ID: ${PageUtils.escapeHtml(i._id||i.id||'')}</div>`;
-        cont.appendChild(row);
+      // Approve buttons
+      document.querySelectorAll(".approveBtn").forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          const id = e.target.dataset.id;
+          const section = document.getElementById(`section-${id}`).value.trim();
+          if (!section) return alert("⚠️ Please assign a section first.");
+          try {
+            await apiFetch(`/api/registrar/enrollment/${id}/approve`, {
+              method: "POST",
+              body: JSON.stringify({ section }),
+            });
+            alert("✅ Enrollee approved");
+            logAction(`Approved enrollee ID: ${id} → Section ${section}`);
+            await loadStats();
+            await loadPending();
+          } catch (err) {
+            console.error("Approve error:", err);
+            alert("❌ Failed to approve enrollee");
+          }
+        });
       });
-    }catch(e){ console.error(e); cont.innerHTML = '<div class="muted small">Failed to load enrolled students.</div>'; }
+
+      // Reject buttons
+      document.querySelectorAll(".rejectBtn").forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          const id = e.target.dataset.id;
+          if (!confirm("❌ Reject this enrollee?")) return;
+          try {
+            await apiFetch(`/api/registrar/enrollment/${id}/reject`, {
+              method: "POST",
+            });
+            alert("✅ Enrollee rejected");
+            logAction(`Rejected enrollee ID: ${id}`);
+            await loadStats();
+            await loadPending();
+          } catch (err) {
+            console.error("Reject error:", err);
+            alert("❌ Failed to reject enrollee");
+          }
+        });
+      });
+    } catch (err) {
+      console.error("Error loading pending enrollees:", err);
+      pendingTable.innerHTML = `<tr><td colspan="7">⚠️ Error loading pending enrollees</td></tr>`;
+    }
   }
 
-  async function acceptEnrollee(i){
-    if(!confirm('Accept enrollee?')) return;
-    try{
-      const r = await PageUtils.fetchJson(endpoints.enroll, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id: i._id || i.id }) });
-      if(!r.ok){ alert('Accept failed'); return; }
-      loadEnrollees(); loadEnrolled();
-    }catch(e){ console.error(e); alert('Error'); }
+  /* -------------------- Section Management -------------------- */
+  async function loadSections() {
+    sectionList.innerHTML = `<li>Loading...</li>`;
+    try {
+      const sections = await apiFetch("/api/registrar/sections");
+      sectionList.innerHTML = "";
+
+      if (!sections.length) {
+        sectionList.innerHTML = `<li>No sections created yet</li>`;
+        return;
+      }
+
+      sections.forEach((sec) => {
+        const li = document.createElement("li");
+        li.textContent = `${sec.gradeLevel.toUpperCase()} - ${sec.strand} - ${sec.name} (Limit: ${sec.capacity})`;
+        sectionList.appendChild(li);
+      });
+    } catch (err) {
+      console.error("Error loading sections:", err);
+      sectionList.innerHTML = `<li>⚠️ Error loading sections</li>`;
+    }
   }
 
-  async function rejectEnrollee(i){
-    if(!confirm('Reject enrollee?')) return;
-    try{
-      const r = await PageUtils.fetchJson(endpoints.reject, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id: i._id || i.id }) });
-      if(!r.ok){ alert('Reject failed'); return; }
-      loadEnrollees();
-    }catch(e){ console.error(e); alert('Error'); }
+  sectionForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const formData = Object.fromEntries(new FormData(sectionForm));
+    try {
+      await apiFetch("/api/registrar/sections", {
+        method: "POST",
+        body: JSON.stringify(formData),
+      });
+      alert("✅ Section created");
+      logAction(`Created section: ${formData.name}`);
+      sectionForm.reset();
+      await loadSections();
+    } catch (err) {
+      console.error("Section create error:", err);
+      alert("❌ Failed to create section");
+    }
+  });
+
+  /* -------------------- Archives -------------------- */
+  async function loadArchives() {
+    archiveList.innerHTML = `<li>Loading...</li>`;
+    try {
+      const archived = await apiFetch("/api/registrar/enrollment/archived");
+      archiveList.innerHTML = "";
+
+      if (!archived.length) {
+        archiveList.innerHTML = `<li>No archived students</li>`;
+        return;
+      }
+
+      archived.forEach((student) => {
+        const li = document.createElement("li");
+        li.innerHTML = `
+          ${student.fullName} (${student.lrn}) - Reason: ${student.archiveReason || "N/A"}
+          <button data-id="${student._id}" class="restoreBtn">♻ Restore</button>
+        `;
+        archiveList.appendChild(li);
+      });
+
+      document.querySelectorAll(".restoreBtn").forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          const id = e.target.dataset.id;
+          if (!confirm("♻ Restore this student?")) return;
+          try {
+            await apiFetch(`/api/registrar/enrollment/${id}/restore`, {
+              method: "POST",
+            });
+            alert("✅ Student restored from archives");
+            logAction(`Restored archived student ID: ${id}`);
+            await loadArchives();
+          } catch (err) {
+            console.error("Restore error:", err);
+            alert("❌ Failed to restore student");
+          }
+        });
+      });
+    } catch (err) {
+      console.error("Error loading archives:", err);
+      archiveList.innerHTML = `<li>⚠️ Error loading archives</li>`;
+    }
   }
 
-  // logout binding
-  const logoutBtn = el('logoutBtn'); if(logoutBtn) logoutBtn.addEventListener('click', async ()=>{ try{ await PageUtils.fetchJson('/api/auth/logout',{method:'POST'}); }catch(e){} location.href='/html/login.html'; });
-
-  // init
-  loadEnrollees(); loadEnrolled();
-})();
+  /* -------------------- Initial Load -------------------- */
+  loadStats();
+  loadPending();
+  loadSections();
+  loadArchives();
+  renderLogs();
+});
