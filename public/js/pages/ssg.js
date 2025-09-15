@@ -287,4 +287,92 @@
     fetchJson, getCurrentUser, hasRole
   });
 
+const Votes = {
+  async list() {
+    try {
+      return await fetchJson('/api/votes', { method: 'GET' });
+    } catch (e) {
+      console.error('Votes.list failed', e);
+      return [];
+    }
+  },
+  async submit(ballotId, optionId) {
+    if (!ballotId || !optionId) throw new Error('ballotId and optionId required');
+    return await fetchJson('/api/votes/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ballotId, optionId })
+    });
+  }
+};
+
+function renderVotes(container, ballots) {
+  if (!container) return;
+  container.innerHTML = '';
+  if (!Array.isArray(ballots) || ballots.length === 0) {
+    container.innerHTML = '<div class="muted small">No ballots at this time.</div>';
+    return;
+  }
+  ballots.forEach(b => {
+    const elb = document.createElement('div');
+    elb.className = 'announcement';
+    elb.innerHTML = `
+      <div style="font-weight:600">${escapeHtml(b.title||b.name||'Ballot')}</div>
+      <div class="small muted">${escapeHtml(b.description||b.details||'')}</div>`;
+    const opts = document.createElement('div');
+    opts.style.marginTop = '8px';
+    (b.options || b.candidates || []).forEach(opt => {
+      const label = document.createElement('label');
+      label.style.display = 'block';
+      label.innerHTML = `
+        <input type="radio" name="vote_${b._id||b.id}"
+               value="${escapeHtml(opt._id||opt.id||opt.value||opt.name||opt)}"/>
+        ${escapeHtml(opt.name||opt.label||opt)}`;
+      opts.appendChild(label);
+    });
+    const btn = document.createElement('button');
+    btn.className = 'btn';
+    btn.textContent = 'Vote';
+    btn.addEventListener('click', async () => {
+      const selected = elb.querySelector(`input[name="vote_${b._id||b.id}"]:checked`);
+      if (!selected) {
+        alert('Choose an option');
+        return;
+      }
+      try {
+        await Votes.submit(b._id||b.id, selected.value);
+        alert('Vote recorded');
+      } catch (e) {
+        console.error(e);
+        alert('Vote failed');
+      }
+    });
+    opts.appendChild(btn);
+    elb.appendChild(opts);
+    container.appendChild(elb);
+  });
+}
+
+// ======================================================
+// Hook into initAuto so votes render when page loads
+// ======================================================
+(async function extendInitAuto(){
+  const orig = typeof initAuto === 'function' ? initAuto : null;
+  window.initAuto = async function(){
+    if(orig) await orig(); // run your existing initAuto first
+
+    // Votes loader
+    const voteContainer = $id('voteContainer');
+    if (voteContainer) {
+      try {
+        const ballots = await Votes.list();
+        const items = ballots.data || ballots.ballots || ballots || [];
+        renderVotes(voteContainer, items);
+      } catch (e) {
+        console.error('loadBallots', e);
+        voteContainer.innerHTML = '<div class="muted small">Failed to load ballots.</div>';
+      }
+    }
+  };
+
 })();
