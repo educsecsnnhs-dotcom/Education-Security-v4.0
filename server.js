@@ -58,6 +58,50 @@ mongoose.connection.on('disconnected', () => {
 // ------------------------------
 app.set('trust proxy', 1);
 
+
+// ------------------------------
+// Routes Auto-Mounting (generic)
+// ------------------------------
+const routesDir = path.join(ROOT, 'routes');
+if (fs.existsSync(routesDir)) {
+  fs.readdirSync(routesDir).forEach(f => {
+    if (!f.endsWith('.js')) return;
+
+    // skip SSG-specific routes (we mount them explicitly)
+    if (['ssgElections.js', 'ssgAnnouncements.js', 'ssgProjects.js'].includes(f)) return;
+
+    const base = '/' + path.basename(f, '.js');
+    const router = require(path.join(routesDir, f));
+    app.use('/api' + base, router);
+
+    const plural = '/api/' + (base.slice(1) + 's');
+    if (plural !== '/api' + base) {
+      app.use(plural, router);
+    }
+  });
+}
+
+// ------------------------------
+// Explicit SSG Routes
+// ------------------------------
+const ssgElections = require('./routes/ssgElections');
+const ssgAnnouncements = require('./routes/ssgAnnouncements');
+const ssgProjects = require('./routes/ssgProjects');
+
+app.use('/api/ssg/elections', ssgElections);
+app.use('/api/ssg/announcements', ssgAnnouncements);
+app.use('/api/ssg/projects', ssgProjects);
+
+// ------------------------------
+// Compat routes for old frontend endpoints
+// ------------------------------
+try {
+  const compat = require('./routes/compat');
+  app.use('/api', compat);
+} catch (err) {
+  console.warn('Compat router not loaded:', err.message);
+}
+
 // ------------------------------
 // Session Setup (MongoDB-backed)
 // ------------------------------
