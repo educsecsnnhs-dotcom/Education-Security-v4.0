@@ -5,7 +5,6 @@ const academics = require("../controllers/academicsController");
 const { authRequired, requireAnyRole } = require("../middleware/authMiddleware");
 
 // Admin or Registrar (or Moderator depending on your policy) should be allowed.
-// Adjust roles as needed.
 router.post("/", authRequired, requireAnyRole(["Admin", "Registrar", "Moderator"]), academics.createRecordBook);
 
 module.exports = router;
