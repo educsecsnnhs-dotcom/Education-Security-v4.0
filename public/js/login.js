@@ -1,4 +1,3 @@
-// public/js/login.js
 document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("loginForm");
   if (!form) return;
@@ -15,17 +14,25 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     try {
+      const encryptedPassword = caesarEncrypt(password); // Encrypt password with Caesar cipher
+
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password: encryptedPassword })
       });
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || "Login failed");
 
-      if (data.token) localStorage.setItem("edusec_token", data.token);
+      // Store user role in localStorage
+      const userRole = data.user?.role || "User"; // Default to 'User' if role is undefined
+      localStorage.setItem("user_role", userRole);
 
+      // Store user's name in localStorage (optional, for user display in welcome page)
+      localStorage.setItem("user_name", data.user?.name || email); 
+
+      // Redirect to welcome page
       window.location.href = "../html/welcome.html";
     } catch (err) {
       console.error("Login error:", err);
