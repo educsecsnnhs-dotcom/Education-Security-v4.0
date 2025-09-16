@@ -1,16 +1,16 @@
 // public/js/pages/management.js
 document.addEventListener("DOMContentLoaded", async () => {
   // Require Auth
-  if (!window.Auth || typeof Auth.getUser !== "function" || typeof Auth.getToken !== "function") {
-    console.error("Auth.getUser() and Auth.getToken() are required (auth.js)");
+  if (!window.Auth || typeof Auth.getUser !== "function") {
+    console.error("Auth.getUser() is required (auth.js)");
     return;
   }
 
   const user = Auth.getUser();
-  const token = Auth.getToken();
+  const token = localStorage.getItem("edusec_token");
 
   if (!user || user.role !== "Admin" || !token) {
-    window.location.href = "/index.html";
+    window.location.href = "/html/index.html"; // ✅ fixed path
     return;
   }
 
