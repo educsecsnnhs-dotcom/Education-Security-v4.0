@@ -25,8 +25,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // Allow frontend (any domain) to send cookies
 app.use(cors({
-  origin: true,          // echo back request origin
-  credentials: true,     // allow cookies
+  origin: process.env.FRONTEND_ORIGIN || 'http://localhost:3000', // Change to your frontend URL
+  credentials: true, // allow cookies
 }));
 
 // ------------------------------
@@ -65,10 +65,10 @@ const SESSION_NAME = process.env.SESSION_NAME || 'sid';
 
 app.use(session({
   name: SESSION_NAME,
-  secret: process.env.SESSION_SECRET || 'change_me_now',
+  secret: process.env.SESSION_SECRET || 'change_me_now',  // Make sure to change this in .env
   resave: false,
   saveUninitialized: false,
-  rolling: true, // refresh expiry on each request
+  rolling: true,  // refresh expiry on each request
   store: MongoStore.create({
     mongoUrl: process.env.MONGO_URI,
     ttl: 60 * 60 * 24 * 7, // 7 days
@@ -85,11 +85,10 @@ app.use(session({
   },
 }));
 
-// Debug session middleware
+// Debug session middleware (useful for troubleshooting)
 app.use((req, res, next) => {
-  if (!req.session) {
-    console.error('⚠️ Session not available!');
-  }
+  console.log('Cookie header:', req.headers.cookie);
+  console.log('Session ID:', req.sessionID);
   next();
 });
 
