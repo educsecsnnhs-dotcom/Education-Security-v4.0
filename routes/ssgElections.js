@@ -1,23 +1,11 @@
 // routes/ssgElections.js
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const Election = require('../models/Election');
-
-// middleware: must be logged in
-function requireAuth(req, res, next) {
-  if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
-  next();
-}
-
-// middleware: must be admin/superadmin/ssg
-function requireSSG(req, res, next) {
-  const role = req.session.user?.role;
-  if (['Admin', 'SuperAdmin', 'SSG'].includes(role)) return next();
-  return res.status(403).json({ error: 'Forbidden' });
-}
+const Election = require("../models/Election");
+const { authRequired, requireAnyRole } = require("../middleware/authMiddleware");
 
 // GET all elections
-router.get('/', requireAuth, async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     const elections = await Election.find().sort({ createdAt: -1 });
     res.json(elections);
@@ -26,13 +14,13 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
-// POST new election
-router.post('/', requireAuth, requireSSG, async (req, res) => {
+// POST new election (Admin, SuperAdmin, SSG)
+router.post("/", authRequired, requireAnyRole(["Admin", "SuperAdmin", "SSG"]), async (req, res) => {
   try {
     const election = new Election({
       title: req.body.title,
       description: req.body.description,
-      createdBy: req.session.user._id,
+      createdBy: req.user.id,
     });
     await election.save();
     res.json(election);
@@ -42,10 +30,10 @@ router.post('/', requireAuth, requireSSG, async (req, res) => {
 });
 
 // DELETE election
-router.delete('/:id', requireAuth, requireSSG, async (req, res) => {
+router.delete("/:id", authRequired, requireAnyRole(["Admin", "SuperAdmin", "SSG"]), async (req, res) => {
   try {
     const deleted = await Election.findByIdAndDelete(req.params.id);
-    if (!deleted) return res.status(404).json({ error: 'Not found' });
+    if (!deleted) return res.status(404).json({ error: "Not found" });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
