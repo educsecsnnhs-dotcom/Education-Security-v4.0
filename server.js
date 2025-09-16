@@ -1,5 +1,5 @@
 // server.js
-// Cloud-ready server with MongoDB session store, secure cookies, and route mounting
+// Cloud-ready server with MongoDB, JWT auth, and route mounting
 
 require('dotenv').config();
 const express = require('express');
@@ -7,8 +7,6 @@ const path = require('path');
 const fs = require('fs');
 const morgan = require('morgan');
 const cors = require('cors');
-const session = require('express-session');
-const MongoStore = require('connect-mongo');
 const mongoose = require('mongoose');
 
 const app = express();
@@ -25,8 +23,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // Allow frontend (any domain) to send cookies
 app.use(cors({
-  origin: process.env.FRONTEND_ORIGIN || 'https://education-security-v4-0.onrender.com', // Change to your frontend URL
-  credentials: true, // allow cookies
+  origin: process.env.FRONTEND_ORIGIN || 'https://education-security-v4-0.onrender.com',
+  credentials: true,
 }));
 
 // ------------------------------
@@ -59,50 +57,12 @@ mongoose.connection.on('disconnected', () => {
 app.set('trust proxy', 1);
 
 // ------------------------------
-// Session Setup (MongoDB-backed)
-// ------------------------------
-const SESSION_NAME = process.env.SESSION_NAME || 'sid';
-
-const cookieOptions = {
-  httpOnly: true,
-  secure: true,                   // Render always uses HTTPS
-  sameSite: 'none',               // required for cross-origin cookies
-  maxAge: 1000 * 60 * 60 * 24 * 7 // 7 days
-};
-
-app.use(session({
-  name: SESSION_NAME,
-  secret: process.env.SESSION_SECRET || 'change_me_now',  // Make sure to change this in .env
-  resave: false,
-  saveUninitialized: false,
-  rolling: true,  // refresh expiry on each request
-  store: MongoStore.create({
-    mongoUrl: process.env.MONGO_URI,
-    ttl: 60 * 60 * 24 * 7, // 7 days
-    autoRemove: 'native',
-    crypto: {
-      secret: process.env.SESSION_SECRET || 'change_me_now',
-    },
-  }),
-  cookie: cookieOptions,
-}));
-
-// Debug session middleware (useful for troubleshooting)
-app.use((req, res, next) => {
-  console.log('Cookie header:', req.headers.cookie);
-  console.log('Session ID:', req.sessionID);
-  next();
-});
-
-// ------------------------------
 // Routes Auto-Mounting (generic)
 // ------------------------------
 const routesDir = path.join(ROOT, 'routes');
 if (fs.existsSync(routesDir)) {
   fs.readdirSync(routesDir).forEach(f => {
     if (!f.endsWith('.js')) return;
-
-    // skip SSG-specific routes (we mount them explicitly)
     if (['ssgElections.js', 'ssgAnnouncements.js', 'ssgProjects.js'].includes(f)) return;
 
     const base = '/' + path.basename(f, '.js');
