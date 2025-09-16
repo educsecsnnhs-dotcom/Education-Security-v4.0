@@ -1,4 +1,4 @@
-//seedAdmin.js
+// seedAdmin.js
 
 const User = require("./models/User");
 const { encryptPassword } = require("./utils/caesar");
@@ -8,15 +8,17 @@ async function seedAdmin() {
     const email = process.env.SUPERADMIN_EMAIL || "superadmin@school.com";
     const password = process.env.SUPERADMIN_PASSWORD || "superadmin123";
 
+    // Check if a SuperAdmin already exists
     let existing = await User.findOne({ role: "SuperAdmin" });
     if (existing) {
       console.log("✅ SuperAdmin already exists:", existing.email);
       return;
     }
 
+    // Create default SuperAdmin
     const superAdmin = new User({
       email,
-      password: encryptPassword(password), 
+      password: encryptPassword(password),
       role: "SuperAdmin",
       extraRoles: [],
     });
@@ -28,4 +30,4 @@ async function seedAdmin() {
   }
 }
 
-module.exports = seedAdmin; 
+module.exports = seedAdmin;
