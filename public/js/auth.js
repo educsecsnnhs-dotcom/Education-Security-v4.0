@@ -9,20 +9,21 @@ function caesarEncrypt(str, shift = 3) {
   }).join("");
 }
 
-// 🔹 Auth object
+// 🔹 Auth object (modified)
 const Auth = {
-  saveToken(token) {
-    localStorage.setItem("edusec_token", token);
+  // No longer saving tokens, just the user's role
+  saveRole(role) {
+    localStorage.setItem("user_role", role);
   },
-  getToken() {
-    return localStorage.getItem("edusec_token");
+  getRole() {
+    return localStorage.getItem("user_role");
   },
-  clearToken() {
-    localStorage.removeItem("edusec_token");
+  clearRole() {
+    localStorage.removeItem("user_role");
   },
   async logout() {
-    Auth.clearToken();
-    window.location.href = "/index.html";
+    Auth.clearRole();
+    window.location.href = "/index.html"; // Always redirect to login page after logout
   }
 };
 
@@ -49,18 +50,12 @@ document.addEventListener("DOMContentLoaded", () => {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.message || "Login failed");
 
-        if (data.token) Auth.saveToken(data.token);
-
+        // Only store the user's role in localStorage
         const role = data.user?.role || "default";
-        switch (role) {
-          case "Registrar": window.location.href = "/registrar.html"; break;
-          case "Admin": window.location.href = "/admin.html"; break;
-          case "Moderator": window.location.href = "/moderator.html"; break;
-          case "Student": window.location.href = "/student.html"; break;
-          case "SSG": window.location.href = "/ssg.html"; break;
-          case "SuperAdmin": window.location.href = "/superadmin.html"; break;
-          default: window.location.href = "/welcome.html";
-        }
+        Auth.saveRole(role);
+
+        // Redirect to welcome.html (no separate role-based pages)
+        window.location.href = "/welcome.html";
       } catch (err) {
         alert("❌ " + err.message);
       }
@@ -85,7 +80,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!res.ok) throw new Error(data.message || "Registration failed");
 
         alert("✅ Registration successful. Please login.");
-        window.location.href = "/index.html";
+        window.location.href = "/index.html"; // redirect to login
       } catch (err) {
         alert("❌ " + err.message);
       }
