@@ -2,16 +2,19 @@
 (async function () {
   const el = (id) => document.getElementById(id);
 
-  function authHeaders() {
-    const token = localStorage.getItem("edusec_token");
-    return token ? { Authorization: `Bearer ${token}` } : {};
+  // Check user role from localStorage
+  const user = JSON.parse(localStorage.getItem("user"));
+
+  if (!user) {
+    window.location.href = "/html/login.html"; // Redirect to login if no user in localStorage
+    return;
   }
 
+  // 🔹 Load available views based on role
   async function loadViews() {
     const sel = el("gradeViewSelect");
     sel.innerHTML = '<option value="">Loading...</option>';
 
-    const user = await PageUtils.currentUser();
     sel.innerHTML = "";
 
     if (!user) {
@@ -20,11 +23,13 @@
     }
 
     if (user.role === "Student") {
+      // Student only sees their own grades
       sel.innerHTML = '<option value="me">My Grades</option>';
     } else {
       try {
-        const sectionsRes = await PageUtils.fetchJson("/api/sections", {
-          headers: authHeaders(),
+        // For Admin, Moderator, load sections and subjects
+        const sectionsRes = await fetch("/api/sections", {
+          method: "GET",
         });
         if (sectionsRes.ok) {
           const sections = await sectionsRes.json();
@@ -36,8 +41,8 @@
           });
         }
 
-        const subjectsRes = await PageUtils.fetchJson("/api/subjects", {
-          headers: authHeaders(),
+        const subjectsRes = await fetch("/api/subjects", {
+          method: "GET",
         });
         if (subjectsRes.ok) {
           const subjects = await subjectsRes.json();
@@ -52,13 +57,11 @@
         console.error("Error loading views", e);
       }
 
-      sel.insertAdjacentHTML(
-        "beforeend",
-        '<option value="all">All Grades</option>'
-      );
+      sel.insertAdjacentHTML("beforeend", '<option value="all">All Grades</option>');
     }
   }
 
+  // 🔹 Load grades based on selected view
   async function loadGrades() {
     const v = el("gradeViewSelect").value;
     const container = el("gradesContainer");
@@ -67,28 +70,21 @@
     try {
       let res = null;
       if (v === "me") {
-        res = await PageUtils.fetchJson("/api/grades/me", {
-          headers: authHeaders(),
-        });
+        // Student views their own grades
+        res = await fetch("/api/grades/me", { method: "GET" });
       } else if (v && v.startsWith("section:")) {
         const sec = v.split(":", 2)[1];
-        res = await PageUtils.fetchJson(`/api/grades?section=${sec}`, {
-          headers: authHeaders(),
-        });
+        res = await fetch(`/api/grades?section=${sec}`, { method: "GET" });
       } else if (v && v.startsWith("subject:")) {
         const sub = v.split(":", 2)[1];
-        res = await PageUtils.fetchJson(`/api/grades?subject=${sub}`, {
-          headers: authHeaders(),
-        });
+        res = await fetch(`/api/grades?subject=${sub}`, { method: "GET" });
       } else if (v === "all") {
-        res = await PageUtils.fetchJson("/api/grades", {
-          headers: authHeaders(),
-        });
+        // Admin/Moderator views all grades
+        res = await fetch("/api/grades", { method: "GET" });
       }
 
       if (!res || !res.ok) {
-        container.innerHTML =
-          '<div class="muted small">Grades endpoint not available</div>';
+        container.innerHTML = '<div class="muted small">Grades endpoint not available</div>';
         return;
       }
 
@@ -96,8 +92,7 @@
       const items = data.data || data.grades || [];
 
       if (!items.length) {
-        container.innerHTML =
-          '<div class="muted small">No grades found.</div>';
+        container.innerHTML = '<div class="muted small">No grades found.</div>';
         return;
       }
 
@@ -127,14 +122,14 @@
         const grade = g.grade || g.score || "";
 
         tr.innerHTML = `
-          <td style="padding:8px;border-top:1px solid #eef2ff">${PageUtils.escapeHtml(
+          <td style="padding:8px;border-top:1px solid #eef2ff">${escapeHtml(
             student
           )}</td>
-          <td style="padding:8px;border-top:1px solid #eef2ff">${PageUtils.escapeHtml(
+          <td style="padding:8px;border-top:1px solid #eef2ff">${escapeHtml(
             subject
           )}</td>
           <td style="padding:8px;border-top:1px solid #eef2ff">
-            <input data-id="${g._id || g.id}" value="${PageUtils.escapeHtml(
+            <input data-id="${g._id || g.id}" value="${escapeHtml(
           String(grade)
         )}" class="input" style="width:80px"/>
           </td>
@@ -154,11 +149,10 @@
           const value = input.value;
 
           try {
-            const r = await PageUtils.fetchJson(`/api/grades/${id}`, {
+            const r = await fetch(`/api/grades/${id}`, {
               method: "PUT",
               headers: {
                 "Content-Type": "application/json",
-                ...authHeaders(),
               },
               body: JSON.stringify({ grade: value }),
             });
@@ -176,8 +170,7 @@
       });
     } catch (e) {
       console.error(e);
-      container.innerHTML =
-        '<div class="muted small">Failed to load grades.</div>';
+      container.innerHTML = '<div class="muted small">Failed to load grades.</div>';
     }
   }
 
@@ -185,7 +178,7 @@
 
   el("logoutBtn")?.addEventListener("click", () => {
     localStorage.removeItem("edusec_token");
-    location.href = "/html/login.html"; // ✅ fixed path
+    location.href = "/html/login.html"; // fixed path
   });
 
   loadViews();
