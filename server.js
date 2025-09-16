@@ -59,6 +59,39 @@ mongoose.connection.on('disconnected', () => {
 app.set('trust proxy', 1);
 
 // ------------------------------
+// Session Setup (MongoDB-backed)
+// ------------------------------
+app.use(session({
+  name: process.env.SESSION_NAME || 'sid',
+  secret: process.env.SESSION_SECRET || 'change_me_now',
+  resave: false,
+  saveUninitialized: false,
+  rolling: true, // refresh expiry on each request
+  store: MongoStore.create({
+    mongoUrl: process.env.MONGO_URI,
+    ttl: 60 * 60 * 24 * 7, // 7 days
+    autoRemove: 'native',
+    crypto: {
+      secret: process.env.SESSION_SECRET || 'change_me_now',
+    },
+  }),
+  cookie: {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production', // HTTPS only in prod
+    sameSite: 'none',   // allow cross-site cookies
+    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+  },
+}));
+
+// Debug session middleware (remove later if noisy)
+app.use((req, res, next) => {
+  if (!req.session) {
+    console.error('⚠️ Session not available!');
+  }
+  next();
+});
+
+// ------------------------------
 // Routes Auto-Mounting (generic)
 // ------------------------------
 const routesDir = path.join(ROOT, 'routes');
@@ -100,39 +133,6 @@ try {
 } catch (err) {
   console.warn('Compat router not loaded:', err.message);
 }
-
-// ------------------------------
-// Session Setup (MongoDB-backed)
-// ------------------------------
-app.use(session({
-  name: process.env.SESSION_NAME || 'sid',
-  secret: process.env.SESSION_SECRET || 'change_me_now',
-  resave: false,
-  saveUninitialized: false,
-  rolling: true, // refresh expiry on each request
-  store: MongoStore.create({
-    mongoUrl: process.env.MONGO_URI,
-    ttl: 60 * 60 * 24 * 7, // 7 days
-    autoRemove: 'native',
-    crypto: {
-      secret: process.env.SESSION_SECRET || 'change_me_now',
-    },
-  }),
-  cookie: {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production', // HTTPS only in prod
-    sameSite: 'none',   // allow cross-site cookies
-    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-  },
-}));
-
-// Debug session middleware (remove later if noisy)
-app.use((req, res, next) => {
-  if (!req.session) {
-    console.error('⚠️ Session not available!');
-  }
-  next();
-});
 
 // ------------------------------
 // Static Frontend
