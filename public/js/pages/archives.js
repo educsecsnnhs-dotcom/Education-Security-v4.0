@@ -1,14 +1,21 @@
 // public/js/pages/archives.js
 // Archives page: show archived records from registrar/admin
-
 document.addEventListener("DOMContentLoaded", () => {
   const el = (id) => document.getElementById(id);
   const cont = el("archivesList");
 
+  function authHeaders(extra={}) {
+    const token = localStorage.getItem("token");
+    return {
+      ...extra,
+      Authorization: token ? `Bearer ${token}` : ""
+    };
+  }
+
   async function loadArchives() {
     cont.innerHTML = '<div class="muted small">Loading archives…</div>';
     try {
-      const res = await fetch("/api/archives", { credentials: "include" });
+      const res = await fetch("/api/archives", { headers: authHeaders() });
       if (!res.ok) {
         cont.innerHTML = '<div class="muted small">Archives not available</div>';
         return;
@@ -42,11 +49,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // 🔹 Logout button
-  el("logoutBtn")?.addEventListener("click", async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-    } catch (e) {}
+  el("logoutBtn")?.addEventListener("click", () => {
+    localStorage.removeItem("token");
     location.href = "/html/login.html";
   });
 
