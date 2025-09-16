@@ -18,17 +18,13 @@ document.addEventListener("DOMContentLoaded", () => {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password })
       });
 
-      if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(errorText || "Registration failed");
-      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Registration failed");
 
       alert("✅ Registration successful! Please log in.");
-      // ✅ Redirect to login page
       window.location.href = "../html/login.html";
     } catch (err) {
       console.error("Registration error:", err);
@@ -47,3 +43,4 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 });
+
