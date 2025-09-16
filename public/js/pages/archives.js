@@ -4,19 +4,27 @@ document.addEventListener("DOMContentLoaded", () => {
   const el = (id) => document.getElementById(id);
   const cont = el("archivesList");
 
-  // 🔹 Standardized to edusec_token
-  function authHeaders(extra={}) {
-    const token = localStorage.getItem("edusec_token");
-    return {
-      ...extra,
-      Authorization: token ? `Bearer ${token}` : ""
-    };
+  // 🔹 Get user role from localStorage (no JWT, just role in localStorage)
+  function getUserRole() {
+    const user = JSON.parse(localStorage.getItem('user')); // User info stored in localStorage
+    return user ? user.role : null;
+  }
+
+  // 🔹 Function to check if user has access to archives
+  function hasAccess() {
+    const userRole = getUserRole();
+    return ['Admin', 'Registrar', 'SuperAdmin'].includes(userRole);  // Only Admin, Registrar, and SuperAdmin can access
   }
 
   async function loadArchives() {
+    if (!hasAccess()) {
+      cont.innerHTML = '<div class="muted small">You do not have permission to view the archives.</div>';
+      return;
+    }
+
     cont.innerHTML = '<div class="muted small">Loading archives…</div>';
     try {
-      const res = await fetch("/api/archives", { headers: authHeaders() });
+      const res = await fetch("/api/archives");
       if (!res.ok) {
         cont.innerHTML = '<div class="muted small">Archives not available</div>';
         return;
@@ -50,10 +58,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // 🔹 Fix logout to use edusec_token and correct href
+  // 🔹 Fix logout to use localStorage and correct href
   el("logoutBtn")?.addEventListener("click", () => {
-    localStorage.removeItem("edusec_token");
-    location.href = "/html/login.html";
+    localStorage.removeItem("user");  // Clear user data from localStorage
+    location.href = "/html/login.html";  // Redirect to login page
   });
 
   loadArchives();
