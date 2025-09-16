@@ -1,197 +1,149 @@
-// public/js/pages/recordbook.js
-// Unified Record Book Management for Student, Moderator, Registrar, SuperAdmin
-
 document.addEventListener("DOMContentLoaded", () => {
-  // ✅ Require login & token
-  if (!window.Auth || typeof Auth.getUser !== "function" || typeof Auth.getToken !== "function") {
-    console.error("Auth.getUser() and Auth.getToken() are required (auth.js)");
+  // 🔹 Check if the user has the right role to access this page (based on localStorage)
+  const userRole = localStorage.getItem("user_role"); // Get user role from localStorage
+  if (userRole !== "Registrar") {
+    window.location.href = "/welcome.html"; // Redirect to welcome page if the role is not "Registrar"
     return;
   }
 
-  Auth.requireLogin();
-  const user = Auth.getUser();
-  const token = localStorage.getItem("edusec_token"); // ✅ using proper edusec_token
+  const enrolledCountEl = document.getElementById("enrolledCount");
+  const pendingCountEl = document.getElementById("pendingCount");
+  const pendingTable = document.getElementById("pendingTable");
+  const sectionList = document.getElementById("sectionList");
+  const sectionForm = document.getElementById("sectionForm");
 
-  if (!user || !token) {
-    window.location.href = "/html/login.html"; // ✅ fixed href mapping
-    return;
-  }
-
-  // 🔹 JWT-based fetch wrapper
-  async function apiFetch(url, options = {}) {
-    const opts = {
-      ...options,
-      headers: {
-        ...(options.headers || {}),
-        Authorization: `Bearer ${token}`,
-        "Content-Type": options.body ? "application/json" : undefined,
-      },
-    };
-    if (opts.body && typeof opts.body !== "string" && !(opts.body instanceof FormData)) {
-      opts.body = JSON.stringify(opts.body);
-    }
-
-    const res = await fetch(url, opts);
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.message || "Request failed");
-    return data;
-  }
-
-  // DOM references
-  const recordTable = document.getElementById("recordTable");
-  const sectionSelect = document.getElementById("sectionSelect");
-  const subjectInput = document.getElementById("subjectInput");
-  const uploadBtn = document.getElementById("uploadGradesBtn");
-  const finalizeBtn = document.getElementById("finalizeBtn");
-  const studentTable = document.getElementById("studentGradesTable");
-
-  /**
-   * 🔹 Student: View my grades
-   */
-  async function loadMyGrades() {
+  // 🔹 Load dashboard stats
+  async function loadStats() {
     try {
-      const grades = await apiFetch("/api/student/grades");
-      studentTable.innerHTML = "";
+      const stats = await apiFetch("/api/registrar/stats");
+      enrolledCountEl.textContent = stats.enrolled || 0;
+      pendingCountEl.textContent = stats.pending || 0;
+    } catch (err) {
+      console.error("Error loading stats:", err);
+      enrolledCountEl.textContent = "⚠️";
+      pendingCountEl.textContent = "⚠️";
+    }
+  }
 
-      if (!grades.length) {
-        studentTable.innerHTML = `<tr><td colspan="3">No grades available yet ✅</td></tr>`;
+  // 🔹 Load pending enrollees
+  async function loadPending() {
+    pendingTable.innerHTML = `<tr><td colspan="7">Loading...</td></tr>`;
+    try {
+      const enrollees = await apiFetch("/api/registrar/enrollment/pending");
+      pendingTable.innerHTML = "";
+
+      if (!enrollees.length) {
+        pendingTable.innerHTML = `<tr><td colspan="7">✅ No pending enrollees</td></tr>`;
         return;
       }
 
-      grades.forEach((g) => {
-        const row = document.createElement("tr");
-        row.innerHTML = `
-          <td>${g.section}</td>
-          <td>${g.subject}</td>
-          <td>${Array.isArray(g.grades) ? g.grades.join(", ") : g.grade || "—"}</td>
+      enrollees.forEach(enrollee => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = ` 
+          <td>${enrollee.fullName}</td>
+          <td>${enrollee.lrn}</td>
+          <td>${enrollee.gradeLevel}</td>
+          <td>${enrollee.strand || "-"}</td>
+          <td>${enrollee.schoolYear}</td>
+          <td>
+            <input type="text" id="section-${enrollee._id}" placeholder="Section">
+          </td>
+          <td>
+            <button data-id="${enrollee._id}" class="approveBtn">✅ Approve</button>
+            <button data-id="${enrollee._id}" class="rejectBtn">❌ Reject</button>
+          </td>
         `;
-        studentTable.appendChild(row);
+        pendingTable.appendChild(tr);
       });
-    } catch (err) {
-      console.error("Error loading grades:", err);
-      studentTable.innerHTML = `<tr><td colspan="3">⚠️ Failed to load grades</td></tr>`;
-    }
-  }
 
-  /**
-   * 🔹 Moderator: Load section students for grade entry
-   */
-  async function loadSectionForGrades(sectionId, subject) {
-    try {
-      const section = await apiFetch(`/api/recordbook/section/${sectionId}?subject=${subject}`);
-      recordTable.innerHTML = "";
-
-      if (!section.students || !section.students.length) {
-        recordTable.innerHTML = `<tr><td colspan="3">No students found</td></tr>`;
-        return;
-      }
-
-      section.students.forEach((s) => {
-        const row = document.createElement("tr");
-        row.innerHTML = `
-          <td>${s.lrn || "—"}</td>
-          <td>${s.fullName || s.name}</td>
-          <td><input type="number" min="0" max="100" class="gradeInput" data-id="${s._id}" placeholder="Enter grade"></td>
-        `;
-        recordTable.appendChild(row);
-      });
-    } catch (err) {
-      console.error("Error loading section:", err);
-      recordTable.innerHTML = `<tr><td colspan="3">⚠️ Failed to load section</td></tr>`;
-    }
-  }
-
-  /**
-   * 🔹 Moderator: Submit grades
-   */
-  async function uploadGrades() {
-    const sectionId = sectionSelect.value;
-    const subject = subjectInput.value.trim();
-
-    if (!sectionId || !subject) {
-      return alert("⚠️ Please select a section and enter subject name");
-    }
-
-    const grades = [];
-    document.querySelectorAll(".gradeInput").forEach((input) => {
-      const val = input.value.trim();
-      if (val) {
-        grades.push({ studentId: input.dataset.id, grade: Number(val) });
-      }
-    });
-
-    if (!grades.length) {
-      return alert("⚠️ No grades entered");
-    }
-
-    try {
-      await apiFetch("/api/recordbook/upload", {
-        method: "POST",
-        body: { sectionId, subject, grades },
-      });
-      alert("✅ Grades uploaded successfully!");
-    } catch (err) {
-      console.error("Upload grades error:", err);
-      alert("❌ Failed to upload grades");
-    }
-  }
-
-  /**
-   * 🔹 Registrar: Finalize / Lock record book
-   */
-  async function finalizeRecordBook() {
-    const sectionId = sectionSelect.value;
-    const subject = subjectInput.value.trim();
-
-    if (!sectionId || !subject) {
-      return alert("⚠️ Please select section and subject to finalize");
-    }
-
-    if (!confirm("⚠️ Finalizing will lock this record book. Proceed?")) return;
-
-    try {
-      await apiFetch("/api/recordbook/finalize", {
-        method: "POST",
-        body: { sectionId, subject },
-      });
-      alert("✅ Record book finalized successfully!");
-    } catch (err) {
-      console.error("Finalize error:", err);
-      alert("❌ Failed to finalize record book");
-    }
-  }
-
-  // 🔹 Role-based initialization
-  if (user.role === "Student") {
-    loadMyGrades();
-  }
-
-  if (user.role === "Moderator") {
-    apiFetch("/api/attendance/mySections")
-      .then((sections) => {
-        sectionSelect.innerHTML = `<option value="">-- Select Section --</option>`;
-        sections.forEach((sec) => {
-          sectionSelect.innerHTML += `<option value="${sec._id}">${sec.name}</option>`;
+      // Approve buttons
+      document.querySelectorAll(".approveBtn").forEach(btn => {
+        btn.addEventListener("click", async (e) => {
+          const id = e.target.dataset.id;
+          const section = document.getElementById(`section-${id}`).value.trim();
+          if (!section) return alert("⚠️ Please assign a section first.");
+          try {
+            await apiFetch(`/api/registrar/enrollment/${id}/approve`, {
+              method: "POST",
+              body: JSON.stringify({ section }),
+            });
+            alert("✅ Enrollee approved");
+            await loadStats();
+            await loadPending();
+          } catch (err) {
+            console.error("Approve error:", err);
+            alert("❌ Failed to approve enrollee");
+          }
         });
-      })
-      .catch((err) => console.error("Error loading sections:", err));
+      });
 
-    sectionSelect.addEventListener("change", () => {
-      if (sectionSelect.value && subjectInput.value.trim()) {
-        loadSectionForGrades(sectionSelect.value, subjectInput.value.trim());
-      }
-    });
-
-    subjectInput.addEventListener("change", () => {
-      if (sectionSelect.value && subjectInput.value.trim()) {
-        loadSectionForGrades(sectionSelect.value, subjectInput.value.trim());
-      }
-    });
-
-    uploadBtn.addEventListener("click", uploadGrades);
+      // Reject buttons
+      document.querySelectorAll(".rejectBtn").forEach(btn => {
+        btn.addEventListener("click", async (e) => {
+          const id = e.target.dataset.id;
+          if (!confirm("❌ Reject this enrollee?")) return;
+          try {
+            await apiFetch(`/api/registrar/enrollment/${id}/reject`, {
+              method: "POST",
+            });
+            alert("✅ Enrollee rejected");
+            await loadStats();
+            await loadPending();
+          } catch (err) {
+            console.error("Reject error:", err);
+            alert("❌ Failed to reject enrollee");
+          }
+        });
+      });
+    } catch (err) {
+      console.error("Error loading pending enrollees:", err);
+      pendingTable.innerHTML = `<tr><td colspan="7">⚠️ Error loading pending enrollees</td></tr>`;
+    }
   }
 
-  if (["Registrar", "SuperAdmin"].includes(user.role)) {
-    finalizeBtn.addEventListener("click", finalizeRecordBook);
+  // 🔹 Load sections
+  async function loadSections() {
+    sectionList.innerHTML = `<li>Loading...</li>`;
+    try {
+      const sections = await apiFetch("/api/registrar/sections");
+      sectionList.innerHTML = "";
+
+      if (!sections.length) {
+        sectionList.innerHTML = `<li>No sections created yet</li>`;
+        return;
+      }
+
+      sections.forEach(sec => {
+        const li = document.createElement("li");
+        li.textContent = `${sec.gradeLevel.toUpperCase()} - ${sec.strand} - ${sec.name} (Limit: ${sec.capacity})`;
+        sectionList.appendChild(li);
+      });
+    } catch (err) {
+      console.error("Error loading sections:", err);
+      sectionList.innerHTML = `<li>⚠️ Error loading sections</li>`;
+    }
   }
+
+  // 🔹 Handle new section form
+  sectionForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const formData = Object.fromEntries(new FormData(sectionForm));
+    try {
+      await apiFetch("/api/registrar/sections", {
+        method: "POST",
+        body: JSON.stringify(formData),
+      });
+      alert("✅ Section created");
+      sectionForm.reset();
+      await loadSections();
+    } catch (err) {
+      console.error("Section create error:", err);
+      alert("❌ Failed to create section");
+    }
+  });
+
+  // 🔹 Initial load
+  loadStats();
+  loadPending();
+  loadSections();
 });
