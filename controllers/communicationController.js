@@ -1,53 +1,30 @@
-// controllers/communicationController.js
-const Announcement = require("../models/Announcement");
-const Event = require("../models/Event");
-const Profile = require("../models/Profile");
+// controllers/adminController.js
+const User = require("../models/User");
+const Section = require("../models/Section");
 
-/** Create announcement */
-exports.createAnnouncement = async (req, res) => {
+/**
+ * Assign a Moderator (teacher) - Admin scopes by department in real deployments
+ */
+exports.assignModerator = async (req, res) => {
   try {
-    const { title, content } = req.body;
-    const ann = new Announcement({ title, content, createdBy: req.user.id }); // ✅ JWT user
-    await ann.save();
-    res.status(201).json({ message: "Announcement created", ann });
-  } catch (err) {
-    res.status(500).json({ message: "Error announcement", error: err.message });
-  }
-};
+    const { userId, sectionId } = req.body;
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
 
-/** Get announcements */
-exports.getAnnouncements = async (req, res) => {
-  try {
-    const anns = await Announcement.find().sort({ createdAt: -1 });
-    res.json(anns);
-  } catch (err) {
-    res.status(500).json({ message: "Error fetching announcements", error: err.message });
-  }
-};
+    user.role = "Moderator"; // Assign Moderator role
+    await user.save();
 
-/** Create event */
-exports.createEvent = async (req, res) => {
-  try {
-    const { title, date, description } = req.body;
-    const ev = new Event({ title, date, description, createdBy: req.user.id }); // ✅ JWT user
-    await ev.save();
-    res.status(201).json({ message: "Event created", ev });
-  } catch (err) {
-    res.status(500).json({ message: "Error event", error: err.message });
-  }
-};
+    // Optionally set as adviser for a section
+    if (sectionId) {
+      const sec = await Section.findById(sectionId);
+      if (sec) {
+        sec.adviser = user._id;
+        await sec.save();
+      }
+    }
 
-/** Update profile (upsert) */
-exports.updateProfile = async (req, res) => {
-  try {
-    const { bio, contact, avatar } = req.body;
-    const prof = await Profile.findOneAndUpdate(
-      { user: req.user.id }, // ✅ JWT user
-      { bio, contact, avatar },
-      { upsert: true, new: true }
-    );
-    res.json({ message: "Profile updated", profile: prof });
+    res.json({ message: "Moderator assigned", user });
   } catch (err) {
-    res.status(500).json({ message: "Error updating profile", error: err.message });
+    res.status(500).json({ message: "Error assigning moderator", error: err.message });
   }
 };
