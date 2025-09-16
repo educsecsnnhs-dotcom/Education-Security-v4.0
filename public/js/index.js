@@ -4,24 +4,14 @@
 // ==========================
 //  Caesar Cipher (Password)
 // ==========================
-// IMPORTANT: must match backend's CIPHER_KEY in .env (default = 3)
 function caesarEncrypt(text, shift = 3) {
   return text
     .split("")
     .map(char => {
       const code = char.charCodeAt(0);
-      // Uppercase A–Z
-      if (code >= 65 && code <= 90) {
-        return String.fromCharCode(((code - 65 + shift) % 26) + 65);
-      }
-      // Lowercase a–z
-      if (code >= 97 && code <= 122) {
-        return String.fromCharCode(((code - 97 + shift) % 26) + 97);
-      }
-      // Digits 0–9
-      if (code >= 48 && code <= 57) {
-        return String.fromCharCode(((code - 48 + shift) % 10) + 48);
-      }
+      if (code >= 65 && code <= 90) return String.fromCharCode(((code - 65 + shift) % 26) + 65); // A–Z
+      if (code >= 97 && code <= 122) return String.fromCharCode(((code - 97 + shift) % 26) + 97); // a–z
+      if (code >= 48 && code <= 57) return String.fromCharCode(((code - 48 + shift) % 10) + 48); // 0–9
       return char;
     })
     .join("");
@@ -30,16 +20,16 @@ function caesarEncrypt(text, shift = 3) {
 // ==========================
 //  Fetch Wrapper (session-based)
 // ==========================
-// Backend uses express-session + cookies, NOT JWT
 async function apiFetch(url, options = {}) {
   const defaultHeaders = { "Content-Type": "application/json" };
-  options.headers = { ...defaultHeaders, ...(options.headers || {}) };
-
-  // Ensure cookies (session) are sent and received
-  options.credentials = "include";
+  const opts = {
+    ...options,
+    headers: { ...defaultHeaders, ...(options.headers || {}) },
+    credentials: "include", // 🔑 always send cookies
+  };
 
   try {
-    const res = await fetch(url, options);
+    const res = await fetch(url, opts);
     if (!res.ok) throw new Error(`API Error: ${res.status}`);
     return await res.json();
   } catch (err) {
@@ -56,9 +46,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (logoutBtn) {
     logoutBtn.addEventListener("click", async () => {
       try {
-        // Call backend logout
-        await apiFetch("/auth/logout", { method: "POST" });
-        // Redirect to login page
+        await apiFetch("/api/auth/logout", { method: "POST" });
         window.location.href = "/login.html";
       } catch (err) {
         console.error("Logout failed:", err);
