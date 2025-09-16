@@ -8,8 +8,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const email = document.getElementById("email").value.trim();
     const password = document.getElementById("password").value.trim();
 
+    // Basic validation for empty fields
     if (!email || !password) {
       alert("Please fill in all fields");
+      return;
+    }
+
+    // Additional validation for email format (optional)
+    const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
+    if (!emailRegex.test(email)) {
+      alert("Please enter a valid email address");
       return;
     }
 
@@ -33,7 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Password toggle
+  // Password toggle for visibility
   const toggle = document.getElementById("togglePassword");
   const passwordInput = document.getElementById("password");
   if (toggle && passwordInput) {
