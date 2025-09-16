@@ -1,8 +1,37 @@
+// public/js/pages/management.js
 document.addEventListener("DOMContentLoaded", async () => {
-  const user = await PageUtils.currentUser();
-  if (!user || user.role !== "Admin") {
+  // Require Auth
+  if (!window.Auth || typeof Auth.getUser !== "function" || typeof Auth.getToken !== "function") {
+    console.error("Auth.getUser() and Auth.getToken() are required (auth.js)");
+    return;
+  }
+
+  const user = Auth.getUser();
+  const token = Auth.getToken();
+
+  if (!user || user.role !== "Admin" || !token) {
     window.location.href = "/index.html";
     return;
+  }
+
+  // Wrapper for fetch with JWT
+  async function apiFetch(url, options = {}) {
+    const opts = {
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+        Authorization: `Bearer ${token}`,
+        "Content-Type": options.body ? "application/json" : undefined,
+      },
+    };
+    if (opts.body && typeof opts.body !== "string" && !(opts.body instanceof FormData)) {
+      opts.body = JSON.stringify(opts.body);
+    }
+
+    const res = await fetch(url, opts);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || "Request failed");
+    return data;
   }
 
   // =======================
