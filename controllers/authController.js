@@ -15,6 +15,7 @@ exports.register = async (req, res) => {
       return res.status(400).json({ message: "Email already registered" });
     }
 
+    // Encrypt the password using Caesar cipher before saving
     const encryptedPass = encryptPassword(password);
 
     const newUser = new User({
@@ -45,6 +46,7 @@ exports.login = async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
+    // Decrypt the stored password and check it against the input
     const decrypted = decryptPassword(user.password);
     if (decrypted !== password) {
       return res.status(400).json({ message: "Invalid credentials" });
