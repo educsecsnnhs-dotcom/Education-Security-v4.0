@@ -2,8 +2,40 @@
 // Unified Record Book Management for Student, Moderator, Registrar, SuperAdmin
 
 document.addEventListener("DOMContentLoaded", () => {
+  // ✅ Require login & token
+  if (!window.Auth || typeof Auth.getUser !== "function" || typeof Auth.getToken !== "function") {
+    console.error("Auth.getUser() and Auth.getToken() are required (auth.js)");
+    return;
+  }
+
   Auth.requireLogin();
   const user = Auth.getUser();
+  const token = Auth.getToken();
+
+  if (!user || !token) {
+    window.location.href = "/login.html";
+    return;
+  }
+
+  // 🔹 JWT-based fetch wrapper
+  async function apiFetch(url, options = {}) {
+    const opts = {
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+        Authorization: `Bearer ${token}`,
+        "Content-Type": options.body ? "application/json" : undefined,
+      },
+    };
+    if (opts.body && typeof opts.body !== "string" && !(opts.body instanceof FormData)) {
+      opts.body = JSON.stringify(opts.body);
+    }
+
+    const res = await fetch(url, opts);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || "Request failed");
+    return data;
+  }
 
   // DOM references
   const recordTable = document.getElementById("recordTable");
@@ -95,7 +127,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       await apiFetch("/api/recordbook/upload", {
         method: "POST",
-        body: JSON.stringify({ sectionId, subject, grades }),
+        body: { sectionId, subject, grades },
       });
       alert("✅ Grades uploaded successfully!");
     } catch (err) {
@@ -120,7 +152,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       await apiFetch("/api/recordbook/finalize", {
         method: "POST",
-        body: JSON.stringify({ sectionId, subject }),
+        body: { sectionId, subject },
       });
       alert("✅ Record book finalized successfully!");
     } catch (err) {
