@@ -21,15 +21,15 @@ const uploadProfile = multer({
   limits: { fileSize: 3 * 1024 * 1024 }
 });
 
-// POST /api/attendance/mark  -> mark attendance (same as academics.markAttendance)
+// POST /api/attendance/mark
 router.post("/attendance/mark", authRequired, requireAnyRole(["Admin","Registrar","Moderator"]), (req, res, next) => {
   return academics.markAttendance(req, res, next);
 });
 
-// GET /api/attendance/my -> return attendance for current student
+// GET /api/attendance/my
 router.get("/attendance/my", authRequired, async (req, res) => {
   try {
-    const studentId = req.user?.id || req.session.user?.id;
+    const studentId = req.user?.id;
     if (!studentId) return res.status(401).json({ message: "Unauthorized" });
     const recs = await Attendance.find({ studentId }).sort({ date: -1 }).limit(365);
     res.json(recs);
@@ -38,7 +38,7 @@ router.get("/attendance/my", authRequired, async (req, res) => {
   }
 });
 
-// GET /api/attendance/audit -> admin/registrar/monitor: query attendance logs
+// GET /api/attendance/audit
 router.get("/attendance/audit", authRequired, requireAnyRole(["Admin","Registrar","Moderator"]), async (req, res) => {
   try {
     const q = {};
@@ -55,7 +55,7 @@ router.get("/attendance/audit", authRequired, requireAnyRole(["Admin","Registrar
   }
 });
 
-// GET /api/enrollment/enrolled -> list approved enrollments
+// GET /api/enrollment/enrolled
 router.get("/enrollment/enrolled", authRequired, requireAnyRole(["Admin","Registrar"]), async (req, res) => {
   try {
     const list = await Enrollment.find({ status: "approved" }).populate("assignedSection");
@@ -65,10 +65,10 @@ router.get("/enrollment/enrolled", authRequired, requireAnyRole(["Admin","Regist
   }
 });
 
-// POST /api/profile/update -> update current user's profile
+// POST /api/profile/update
 router.post("/profile/update", authRequired, async (req, res) => {
   try {
-    const uid = req.user?.id || req.session.user?.id;
+    const uid = req.user?.id;
     if (!uid) return res.status(401).json({ message: "Unauthorized" });
     const allowed = ["firstName","lastName","middleName","lrn","phone","address","bio"];
     const update = {};
@@ -80,10 +80,10 @@ router.post("/profile/update", authRequired, async (req, res) => {
   }
 });
 
-// POST /api/profile/uploadPic -> upload profile picture and update user.profilePic
+// POST /api/profile/uploadPic
 router.post("/profile/uploadPic", authRequired, uploadProfile.single("picture"), async (req, res) => {
   try {
-    const uid = req.user?.id || req.session.user?.id;
+    const uid = req.user?.id;
     if (!uid) return res.status(401).json({ message: "Unauthorized" });
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
     const rel = req.file.path.replace(/\\/g, "/");
@@ -94,7 +94,7 @@ router.post("/profile/uploadPic", authRequired, uploadProfile.single("picture"),
   }
 });
 
-// POST /api/recordbook/upload -> call existing controller if present
+// POST /api/recordbook/upload
 router.post("/recordbook/upload", authRequired, requireAnyRole(["Admin","Registrar","Moderator"]), async (req, res) => {
   try {
     if (academics.createRecordBook) {
@@ -106,7 +106,7 @@ router.post("/recordbook/upload", authRequired, requireAnyRole(["Admin","Registr
   }
 });
 
-// POST /api/recordbook/finalize -> mark a recordbook as finalized
+// POST /api/recordbook/finalize
 router.post("/recordbook/finalize", authRequired, requireAnyRole(["Admin","Registrar"]), async (req, res) => {
   try {
     const { id } = req.body;
@@ -119,7 +119,7 @@ router.post("/recordbook/finalize", authRequired, requireAnyRole(["Admin","Regis
   }
 });
 
-// GET /api/admin/department -> list sections/departments
+// GET /api/admin/department
 router.get("/admin/department", authRequired, requireAnyRole(["Admin","Registrar"]), async (req, res) => {
   try {
     const sections = await Section.find({}).limit(1000).sort({ gradeLevel: 1, name: 1 });
