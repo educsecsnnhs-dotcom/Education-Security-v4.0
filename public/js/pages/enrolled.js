@@ -11,17 +11,12 @@
     const cont = el('enrolledList');
     cont.innerHTML = '<div class="muted small">Loading enrolled students…</div>';
     try{
-      const res = await PageUtils.fetchJson('/api/registrar/enrolled', {
+      // 🔹 PageUtils.fetchJson already returns parsed JSON
+      const j = await PageUtils.fetchJson('/api/registrar/enrolled', {
         method: 'GET',
         headers: authHeaders()
       });
 
-      if (!res.ok) {
-        cont.innerHTML = '<div class="muted small">Failed to fetch enrolled students.</div>';
-        return;
-      }
-
-      const j = await res.json();
       const items = j.data || j.enrolled || j.students || j || [];
       if (!items || items.length === 0) {
         cont.innerHTML = '<div class="muted small">No enrolled students.</div>';
@@ -54,4 +49,3 @@
     loadEnrolled();
   });
 })();
-
