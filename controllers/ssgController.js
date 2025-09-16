@@ -7,7 +7,7 @@ const User = require("../models/User");
 exports.createElection = async (req, res) => {
   try {
     const { name, positions } = req.body;
-    const e = new SSG({ type: "election", name, positions, createdBy: req.user.id }); // ✅ JWT user
+    const e = new SSG({ type: "election", name, positions, createdBy: req.user.id }); // Assuming user info is available in req.user
     await e.save();
     res.status(201).json({ message: "Election created", election: e });
   } catch (err) {
@@ -37,7 +37,7 @@ exports.castVote = async (req, res) => {
     const election = await SSG.findById(electionId);
     if (!election) return res.status(404).json({ message: "Election not found" });
 
-    if (election.voters.includes(req.user.id)) { // ✅ JWT user
+    if (election.voters.includes(req.user.id)) { // Assuming user info is available in req.user
       return res.status(400).json({ message: "You already voted" });
     }
 
@@ -45,7 +45,7 @@ exports.castVote = async (req, res) => {
     if (!cand) return res.status(404).json({ message: "Candidate not found" });
 
     cand.votes = (cand.votes || 0) + 1;
-    election.voters.push(req.user.id); // ✅ JWT user
+    election.voters.push(req.user.id); // Assuming user info is available in req.user
     await election.save();
     res.json({ message: "Vote recorded", election });
   } catch (err) {
@@ -57,7 +57,7 @@ exports.castVote = async (req, res) => {
 exports.createSSGEvent = async (req, res) => {
   try {
     const { title, date } = req.body;
-    const ev = new Event({ title, date, createdBy: req.user.id, type: "SSG" }); // ✅ JWT user
+    const ev = new Event({ title, date, createdBy: req.user.id, type: "SSG" }); // Assuming user info is available in req.user
     await ev.save();
     res.status(201).json({ message: "SSG event created", event: ev });
   } catch (err) {
