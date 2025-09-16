@@ -21,10 +21,9 @@ app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Allow frontend (any domain) to send cookies
+// Allow frontend (JWT via Authorization header)
 app.use(cors({
   origin: process.env.FRONTEND_ORIGIN || 'https://education-security-v4-0.onrender.com',
-  credentials: true,
 }));
 
 // ------------------------------
