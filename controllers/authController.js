@@ -1,5 +1,4 @@
 // controllers/authController.js
-const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const { encryptPassword, decryptPassword } = require("../utils/caesar");
 
@@ -21,7 +20,7 @@ exports.register = async (req, res) => {
     const newUser = new User({
       email,
       password: encryptedPass,
-      role: "User",
+      role: "User", // default role
       extraRoles: [],
     });
 
@@ -51,35 +50,26 @@ exports.login = async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    const payload = {
+    const userInfo = {
       id: user._id,
       email: user.email,
       role: user.role,
       extraRoles: user.extraRoles,
     };
 
-    const token = jwt.sign(payload, process.env.JWT_SECRET, {
-      expiresIn: "10m",
-    });
-
-    res.json({ message: "✅ Login successful", token, user: payload });
+    res.json({ message: "✅ Login successful", user: userInfo });
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
 
-// LOGOUT (JWT is stateless — client just discards token)
+// LOGOUT
 exports.logout = (req, res) => {
-  res.json({ message: "✅ Logged out (client must delete token)" });
+  res.json({ message: "✅ Logged out" });
 };
 
-// SESSION CHECK (decode token)
+// CURRENT USER (placeholder since no sessions/tokens are used)
 exports.me = (req, res) => {
-  if (!req.user) {
-    return res.status(401).json({ message: "Not logged in" });
-  }
-  res.json(req.user);
+  res.json({ message: "ℹ️ No session tracking in this system" });
 };
-
-
