@@ -1,40 +1,12 @@
 // public/js/pages/recordbook.js
-// Unified Record Book Management for Student, Moderator, Registrar, SuperAdmin
-
 document.addEventListener("DOMContentLoaded", () => {
-  // ✅ Require login & token
-  if (!window.Auth || typeof Auth.getUser !== "function" || typeof Auth.getToken !== "function") {
-    console.error("Auth.getUser() and Auth.getToken() are required (auth.js)");
+  // Get user info from localStorage
+  const user = JSON.parse(localStorage.getItem("user"));
+  
+  // Check if user exists and has a valid role
+  if (!user || !user.role) {
+    window.location.href = "/html/login.html"; // Redirect to login if no user data or role is missing
     return;
-  }
-
-  Auth.requireLogin();
-  const user = Auth.getUser();
-  const token = localStorage.getItem("edusec_token"); // ✅ corrected token reference
-
-  if (!user || !token) {
-    window.location.href = "/html/login.html"; // ✅ corrected href
-    return;
-  }
-
-  // 🔹 JWT-based fetch wrapper
-  async function apiFetch(url, options = {}) {
-    const opts = {
-      ...options,
-      headers: {
-        ...(options.headers || {}),
-        Authorization: `Bearer ${token}`,
-        "Content-Type": options.body ? "application/json" : undefined,
-      },
-    };
-    if (opts.body && typeof opts.body !== "string" && !(opts.body instanceof FormData)) {
-      opts.body = JSON.stringify(opts.body);
-    }
-
-    const res = await fetch(url, opts);
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.message || "Request failed");
-    return data;
   }
 
   // DOM references
@@ -44,6 +16,22 @@ document.addEventListener("DOMContentLoaded", () => {
   const uploadBtn = document.getElementById("uploadGradesBtn");
   const finalizeBtn = document.getElementById("finalizeBtn");
   const studentTable = document.getElementById("studentGradesTable");
+
+  // Helper function for fetching data from the API
+  async function apiFetch(url, options = {}) {
+    const opts = {
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+        "Content-Type": options.body ? "application/json" : undefined,
+      },
+    };
+
+    const res = await fetch(url, opts);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || "Request failed");
+    return data;
+  }
 
   /**
    * 🔹 Student: View my grades
