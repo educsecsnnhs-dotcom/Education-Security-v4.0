@@ -26,29 +26,29 @@
 
   /* ---------- Helper utilities ---------- */
 
-  // Prefer PageUtils.fetchJson for all requests so cookies/sessions are used by server-side express/mongo-session.
-  async function fetchJson(url, options = {}) {
-    if (typeof PageUtils !== 'undefined' && typeof PageUtils.fetchJson === 'function') {
-      // page utils is assumed to handle credentials/session cookies correctly
-      return PageUtils.fetchJson(url, options);
-    }
-
-    // Fallback: native fetch with same-origin credentials (still session-based)
-    const opts = Object.assign({ credentials: 'same-origin', headers: {} }, options);
-    if (opts.body && !(opts.body instanceof FormData)) {
-      opts.headers['Content-Type'] = opts.headers['Content-Type'] || 'application/json';
-    }
-    const resp = await fetch(url, opts);
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => '');
-      const err = new Error(`HTTP ${resp.status} ${resp.statusText}`);
-      err.status = resp.status; err.body = text;
-      throw err;
-    }
-    const ct = resp.headers.get('content-type') || '';
-    if (ct.includes('application/json')) return resp.json();
-    return resp.text();
+// Prefer PageUtils.fetchJson for all requests so cookies/sessions are used by server-side express/mongo-session.
+async function fetchJson(url, options = {}) {
+  if (typeof PageUtils !== 'undefined' && typeof PageUtils.fetchJson === 'function') {
+    // page utils is assumed to handle credentials/session cookies correctly
+    return PageUtils.fetchJson(url, options);
   }
+
+  // Fallback: native fetch with credentials included to ensure session cookies are sent (cross-origin)
+  const opts = Object.assign({ credentials: 'include', headers: {} }, options);
+  if (opts.body && !(opts.body instanceof FormData)) {
+    opts.headers['Content-Type'] = opts.headers['Content-Type'] || 'application/json';
+  }
+  const resp = await fetch(url, opts);
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    const err = new Error(`HTTP ${resp.status} ${resp.statusText}`);
+    err.status = resp.status; err.body = text;
+    throw err;
+  }
+  const ct = resp.headers.get('content-type') || '';
+  if (ct.includes('application/json')) return resp.json();
+  return resp.text();
+}
 
   // Use PageUtils.currentUser() if available, otherwise GET /api/auth/me via fetchJson
   async function getCurrentUser() {
