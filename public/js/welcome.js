@@ -225,7 +225,7 @@
       }
     }catch(err){
       console.error('Welcome load error',err);
-      location.href = '/html/login.html';
+      location.href = '../html/login.html';
     }
 
     const logoutBtn = qs('#logoutBtn');
@@ -235,7 +235,7 @@
           await fetchJson(api.logout,{method:'POST'});
         }catch(e){}
         sessionStorage.removeItem('EDUSEC_originalSuperAdmin');
-        location.href = '/html/login.html';
+        location.href = '../html/login.html';
       });
     }
   });
