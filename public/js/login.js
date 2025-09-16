@@ -18,16 +18,14 @@ document.addEventListener("DOMContentLoaded", () => {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include", // ensures session cookie
-        body: JSON.stringify({ email, password }), // backend hashes it
+        body: JSON.stringify({ email, password })
       });
 
-      if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(errorText || "Login failed");
-      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Login failed");
 
-      // ✅ Always go to welcome page
+      if (data.token) localStorage.setItem("edusec_token", data.token);
+
       window.location.href = "../html/welcome.html";
     } catch (err) {
       console.error("Login error:", err);
