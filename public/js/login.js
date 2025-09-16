@@ -1,4 +1,24 @@
 document.addEventListener("DOMContentLoaded", () => {
+  // Caesar cipher encryption function
+  function caesarEncrypt(text, shift = 3) {
+    if (text === undefined || text === null) return "";
+
+    function _shiftChar(code, base, range, shift) {
+      return ((code - base + shift + range) % range) + base;
+    }
+
+    return String(text)
+      .split("")
+      .map((char) => {
+        const code = char.charCodeAt(0);
+        if (code >= 65 && code <= 90) return String.fromCharCode(_shiftChar(code, 65, 26, shift)); // A-Z
+        if (code >= 97 && code <= 122) return String.fromCharCode(_shiftChar(code, 97, 26, shift)); // a-z
+        if (code >= 48 && code <= 57) return String.fromCharCode(_shiftChar(code, 48, 10, shift)); // 0-9
+        return char;  // Passthrough for non-alphabetic/numeric chars
+      })
+      .join("");
+  }
+
   const form = document.getElementById("loginForm");
   if (!form) return;
 
