@@ -8,3 +8,4 @@ router.post("/", authRequired, comm.updateProfile);
 router.get("/", authRequired, comm.getAnnouncements); // placeholder — implement getProfile if needed
 
 module.exports = router;
+
