@@ -9,7 +9,7 @@ const { getSheetValues } = require("../utils/sheetsClient");
  */
 exports.getMyGrades = async (req, res) => {
   try {
-    const studentId = req.user?.id; // ✅ JWT only
+    const studentId = req.user?.id; // Assuming req.user is now a placeholder
     if (!studentId) return res.status(401).json({ message: "Unauthorized" });
 
     const enrollments = await Enrollment.find({ studentId, status: "approved" }).populate("assignedSection");
