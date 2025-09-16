@@ -45,7 +45,7 @@ exports.login = async (req, res) => {
     if (decrypted !== password)
       return res.status(400).send("Invalid credentials");
 
-    // ✅ Session
+    // ✅ Store session
     req.session.user = {
       id: user._id,
       email: user.email,
@@ -62,8 +62,14 @@ exports.login = async (req, res) => {
 
 // LOGOUT
 exports.logout = (req, res) => {
+  const cookieName = process.env.SESSION_NAME || "sid";
+
   req.session.destroy(() => {
-    res.clearCookie("connect.sid");
+    res.clearCookie(cookieName, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    });
     res.send("✅ Logged out");
   });
 };
@@ -73,4 +79,3 @@ exports.me = (req, res) => {
   if (!req.session.user) return res.status(401).send("Not logged in");
   res.json(req.session.user);
 };
-
