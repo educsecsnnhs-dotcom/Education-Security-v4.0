@@ -8,11 +8,20 @@
   };
   const el = id => document.getElementById(id);
 
+  // 🔹 Grab token from localStorage
+  function authHeaders(extra={}) {
+    const token = localStorage.getItem("token");
+    return {
+      ...extra,
+      Authorization: token ? `Bearer ${token}` : ""
+    };
+  }
+
   async function load(){
     const list = el('annList');
     list.innerHTML = '<div class="muted small">Loading announcements…</div>';
     try{
-      const res = await PageUtils.fetchJson(api.list);
+      const res = await fetch(api.list, { headers: authHeaders() });
       if(!res.ok){
         list.innerHTML = '<div class="muted small">No announcements found.</div>';
         return;
@@ -86,7 +95,6 @@
     
     PageUtils.showModal(html);
 
-    // preselect audience if editing
     if(item?.audience){
       const sel = document.getElementById('annAudience');
       [...sel.options].forEach(o => {
@@ -106,9 +114,9 @@
         const payload = { title, content, audience };
         let url = api.create, method='POST';
         if(!isNew){ url = api.edit + '/' + (item._id||item.id); method='PUT'; }
-        const r = await PageUtils.fetchJson(url, {
+        const r = await fetch(url, {
           method,
-          headers:{'Content-Type':'application/json'},
+          headers: authHeaders({'Content-Type':'application/json'}),
           body: JSON.stringify(payload)
         });
         if(!r.ok){ alert('Failed'); return; }
@@ -122,13 +130,12 @@
     if(!confirm('Delete announcement?')) return;
     try{
       const id = item._id || item.id;
-      const r = await PageUtils.fetchJson(api.del + '/' + id, { method:'DELETE' });
+      const r = await fetch(api.del + '/' + id, { method:'DELETE', headers: authHeaders() });
       if(!r.ok){ alert('Delete failed'); return; }
       load();
     }catch(e){ console.error(e); alert('Error'); }
   }
 
-  // create button behavior
   const createBtn = el('createAnnouncementBtn');
   if(createBtn){
     const user = await PageUtils.currentUser();
@@ -138,14 +145,14 @@
     }
   }
 
-  // logout
   const logout = el('logoutBtn');
   if(logout){
-    logout.addEventListener('click', async ()=>{
-      try{ await PageUtils.fetchJson('/api/auth/logout',{method:'POST'}); }catch(e){}
+    logout.addEventListener('click', ()=>{
+      localStorage.removeItem("token");
       location.href='/html/login.html';
     });
   }
 
   load();
 })();
+
