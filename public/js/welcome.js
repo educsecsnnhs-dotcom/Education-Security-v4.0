@@ -1,4 +1,3 @@
-// public/js/welcome.js
 (function(){
   'use strict';
 
@@ -14,12 +13,22 @@
 
   function qs(sel){ return document.querySelector(sel); }
 
-  async function fetchJson(url, opts = {}){
+  // Fetch with JWT token
+  async function fetchJson(url, opts = {}) {
     const token = localStorage.getItem("edusec_token");
     const headers = { 'Accept': 'application/json', ...(opts.headers || {}) };
     if (token) headers["Authorization"] = `Bearer ${token}`;
+
     const cfg = Object.assign({ headers }, opts);
-    return fetch(url, cfg);
+    const res = await fetch(url, cfg);
+
+    // Handle unauthorized responses (token might have expired)
+    if (res.status === 401) {
+      localStorage.removeItem("edusec_token");  // clear expired token
+      window.location.href = '/html/login.html'; // redirect to login
+    }
+
+    return res;
   }
 
   function showModal(html){
@@ -47,7 +56,7 @@
   function niceDate(dStr){
     try{
       const d = new Date(dStr);
-      return d.toLocaleString('en-PH',{
+      return d.toLocaleString('en-PH', {
         timeZone:'Asia/Manila',
         year:'numeric',month:'short',day:'numeric',
         hour:'2-digit',minute:'2-digit'
@@ -112,7 +121,7 @@
         return;
       }
       container.innerHTML = '';
-      items.slice(0,5).forEach(a=>{
+      items.slice(0,5).forEach(a=> {
         const el = document.createElement('div');
         el.className = 'announcement';
         el.innerHTML =
@@ -161,7 +170,7 @@
 
   function escapeHtml(str){
     if(!str) return '';
-    return String(str).replace(/[&<>"']/g, s => ({
+    return String(str).replace(/[&<>"']/g, s => ( {
       '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
     })[s]);
   }
@@ -180,9 +189,9 @@
   }
 
   // === INIT ===
-  document.addEventListener('DOMContentLoaded', async ()=>{
-    try{
-      const res = await fetchJson(api.me);
+  document.addEventListener('DOMContentLoaded', async ()=> {
+    try {
+      const res = await fetchJson(api.me);  // check user session
       if(!res.ok){
         location.href = '/html/login.html';
         return;
@@ -227,5 +236,3 @@
     }
   });
 })();
-
-
