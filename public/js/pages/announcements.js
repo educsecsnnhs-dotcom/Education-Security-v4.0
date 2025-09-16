@@ -8,9 +8,9 @@
   };
   const el = id => document.getElementById(id);
 
-  // 🔹 Grab token from localStorage
+  // 🔹 Grab token from localStorage (standardized to edusec_token)
   function authHeaders(extra={}) {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("edusec_token");
     return {
       ...extra,
       Authorization: token ? `Bearer ${token}` : ""
@@ -148,7 +148,7 @@
   const logout = el('logoutBtn');
   if(logout){
     logout.addEventListener('click', ()=>{
-      localStorage.removeItem("token");
+      localStorage.removeItem("edusec_token");
       location.href='/html/login.html';
     });
   }
