@@ -8,7 +8,7 @@ const User = require("../models/User");
 exports.submitEnrollment = async (req, res) => {
   try {
     const { level, strand, schoolYear, yearLevel } = req.body;
-    const userId = req.session.user?.id;
+    const userId = req.user?.id; // ✅ switched to JWT payload
 
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
@@ -56,7 +56,7 @@ exports.submitEnrollment = async (req, res) => {
  */
 exports.getMyEnrollment = async (req, res) => {
   try {
-    const userId = req.session.user?.id;
+    const userId = req.user?.id; // ✅ switched to JWT payload
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const rec = await Enrollment.findOne({ studentId: userId }).sort({ createdAt: -1 });
