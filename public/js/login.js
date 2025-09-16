@@ -28,7 +28,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       // ✅ Always go to welcome page
-      window.location.href = "html/welcome.html";
+      window.location.href = "../html/welcome.html";
     } catch (err) {
       console.error("Login error:", err);
       alert("❌ " + err.message);
