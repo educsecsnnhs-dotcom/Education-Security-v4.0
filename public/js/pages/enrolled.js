@@ -2,14 +2,18 @@
 (async function(){
   const el = id => document.getElementById(id);
 
+  function authHeaders() {
+    const token = localStorage.getItem("edusec_token");
+    return token ? { "Authorization": `Bearer ${token}` } : {};
+  }
+
   async function loadEnrolled(){
     const cont = el('enrolledList');
     cont.innerHTML = '<div class="muted small">Loading enrolled students…</div>';
     try{
-      // 🔗 Only use the backend-confirmed route
       const res = await PageUtils.fetchJson('/api/registrar/enrolled', {
         method: 'GET',
-        credentials: 'include', // keeps session cookie
+        headers: authHeaders()
       });
 
       if (!res.ok) {
@@ -42,14 +46,12 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    // 🔗 Logout → backend + redirect
-    el('logoutBtn')?.addEventListener('click', async () => {
-      try {
-        await PageUtils.fetchJson('/api/auth/logout', { method:'POST', credentials:'include' });
-      } catch(e){}
+    el('logoutBtn')?.addEventListener('click', () => {
+      localStorage.removeItem("edusec_token");
       location.href = '/html/login.html';
     });
 
     loadEnrolled();
   });
 })();
+
