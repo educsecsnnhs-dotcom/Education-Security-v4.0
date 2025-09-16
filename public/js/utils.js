@@ -1,17 +1,3 @@
-// public/js/utils.js
-// Unified frontend utilities (merged utils.js + page-utils.js)
-// Includes:
-// - DOM helpers
-// - API fetch wrapper (credentials included, backend-safe)
-// - Toast + confirm dialogs
-// - Button disable/enable
-// - Recent activity log
-// - Header ticker + clock
-// - Date/time + formatting helpers
-// - Query param + debounce
-// - HTML escape
-// Place in public/js/ and include FIRST on every page.
-
 (function () {
   "use strict";
 
@@ -40,6 +26,7 @@
 
   /* ============================ API fetch wrapper ============================ */
   window.apiFetch = async function (path, options = {}) {
+    const role = localStorage.getItem("user_role"); // Get user role from localStorage
     const baseOptions = { credentials: "include", headers: {} };
     let body = options.body;
 
@@ -50,6 +37,9 @@
 
     const fetchOpts = Object.assign({}, baseOptions, options, { body });
     fetchOpts.headers = Object.assign({}, baseOptions.headers, options.headers || {});
+    
+    // Attach role in headers
+    if (role) fetchOpts.headers["Role"] = role;
 
     const res = await fetch(path, fetchOpts);
     const txt = await res.text();
@@ -209,7 +199,7 @@
 
     const roleEl = document.getElementById(`${mountId}-role`);
     try {
-      const user = JSON.parse(sessionStorage.getItem("user") || "null");
+      const user = JSON.parse(localStorage.getItem("user") || "null");
       if (user) {
         const displayName = user.fullName || user.username || user.email || "User";
         roleEl.textContent = `${displayName} — ${user.role || "User"}`;
@@ -220,11 +210,8 @@
 
     const logoutBtn = document.getElementById(`${mountId}-logout`);
     logoutBtn.addEventListener("click", async () => {
-      try {
-        await apiFetch("/api/auth/logout", { method: "POST" });
-      } catch {}
-      sessionStorage.removeItem("user");
-      window.location.href = "/login.html";
+      localStorage.removeItem("user_role");
+      window.location.href = "/login.html"; // Redirect to login page on logout
     });
   };
 
