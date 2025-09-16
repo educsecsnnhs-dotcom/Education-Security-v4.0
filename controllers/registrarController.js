@@ -238,4 +238,3 @@ exports.assignRole = async (req, res) => {
     res.status(500).json({ message: "Error assigning role", error: err.message });
   }
 };
-
