@@ -23,11 +23,9 @@ app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ------------------------------
-// CORS: Allow frontend to send cookies
-// ------------------------------
+// Allow frontend (any domain) to send cookies
 app.use(cors({
-  origin: process.env.FRONTEND_ORIGIN || 'http://localhost:3000', // must match frontend URL
+  origin: process.env.FRONTEND_ORIGIN || 'http://localhost:3000', // Change to your frontend URL
   credentials: true, // allow cookies
 }));
 
@@ -61,26 +59,23 @@ mongoose.connection.on('disconnected', () => {
 app.set('trust proxy', 1);
 
 // ------------------------------
-// Unified Cookie Options
-// ------------------------------
-const cookieOptions = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production', // HTTPS only in prod
-  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-  maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-};
-
-// ------------------------------
 // Session Setup (MongoDB-backed)
 // ------------------------------
 const SESSION_NAME = process.env.SESSION_NAME || 'sid';
 
+const cookieOptions = {
+  httpOnly: true,
+  secure: true,                   // Render always uses HTTPS
+  sameSite: 'none',               // required for cross-origin cookies
+  maxAge: 1000 * 60 * 60 * 24 * 7 // 7 days
+};
+
 app.use(session({
   name: SESSION_NAME,
-  secret: process.env.SESSION_SECRET || 'change_me_now',  // set strong secret in .env
+  secret: process.env.SESSION_SECRET || 'change_me_now',  // Make sure to change this in .env
   resave: false,
   saveUninitialized: false,
-  rolling: true, // refresh expiry on each request
+  rolling: true,  // refresh expiry on each request
   store: MongoStore.create({
     mongoUrl: process.env.MONGO_URI,
     ttl: 60 * 60 * 24 * 7, // 7 days
@@ -184,5 +179,3 @@ app.listen(PORT, async () => {
     console.warn('⚠️ seedAdmin not executed:', err.message || err);
   }
 });
-
-module.exports = { cookieOptions }; // export for use in logout controller
