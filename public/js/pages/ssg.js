@@ -1,23 +1,8 @@
-/*
- Combined SSG frontend (public/js/ssg.js) — JWT Edition
- - Works with JWT-based auth:
-     POST /api/auth/login → returns { token, user }
-     POST /api/auth/register
-     POST /api/auth/logout (optional server revoke)
-     GET  /api/auth/me  (requires Authorization: Bearer <token>)
- - Expects JWT to be stored client-side in localStorage.
- - Role-based checks preserved (hasRole).
- - Elections/Announcements/Projects remain localStorage fallback until backend endpoints exist.
-*/
-
 (function () {
   'use strict';
 
-  /* ---------- JWT Auth helper ---------- */
+  /* ---------- Auth helper ---------- */
   const Auth = {
-    getToken() { return localStorage.getItem('edusec_token'); },
-    setToken(t) { if (t) localStorage.setItem('edusec_token', t); },
-    clearToken() { localStorage.removeItem('edusec_token'); },
     getUser() {
       try { return JSON.parse(localStorage.getItem('edusec_user')); } catch { return null; }
     },
@@ -26,57 +11,13 @@
       else localStorage.removeItem('edusec_user');
     },
     logout() {
-      this.clearToken(); this.setUser(null);
+      this.setUser(null);
+      window.location.href = '/html/login.html'; // Redirect to login after logout
     }
   };
   window.Auth = Auth; // expose globally
 
-  /* ---------- fetchJson (JWT-aware) ---------- */
-  async function fetchJson(url, options = {}) {
-    const opts = Object.assign({ headers: {} }, options);
-
-    // add JWT header if available
-    const token = Auth.getToken();
-    if (token) opts.headers['Authorization'] = `Bearer ${token}`;
-
-    if (opts.body && !(opts.body instanceof FormData)) {
-      opts.headers['Content-Type'] = opts.headers['Content-Type'] || 'application/json';
-    }
-
-    const resp = await fetch(url, opts);
-    if (resp.status === 401) {
-      // auto logout on unauthorized
-      Auth.logout();
-      window.location.href = '/html/login.html';
-      throw new Error('Unauthorized');
-    }
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => '');
-      const err = new Error(`HTTP ${resp.status} ${resp.statusText}`);
-      err.status = resp.status; err.body = text;
-      throw err;
-    }
-    const ct = resp.headers.get('content-type') || '';
-    if (ct.includes('application/json')) return resp.json();
-    return resp.text();
-  }
-
-  /* ---------- Current User ---------- */
-  async function getCurrentUser() {
-    let u = Auth.getUser();
-    if (u) return u;
-    try {
-      const data = await fetchJson('/api/auth/me', { method: 'GET' });
-      if (data) {
-        Auth.setUser(data);
-        return data;
-      }
-    } catch (e) {
-      console.warn('GET /api/auth/me failed', e);
-    }
-    return null;
-  }
-
+  /* ---------- Role-check helper ---------- */
   function hasRole(user, roleName) {
     if (!user) return false;
     const rn = String(roleName || '').toLowerCase();
@@ -88,8 +29,6 @@
         if (typeof r === 'object' && (r.name || r.role) && String(r.name || r.role).toLowerCase() === rn) return true;
       }
     }
-    if (rn === 'superadmin' && (user.isSuperAdmin || user.is_superadmin || user.superAdmin)) return true;
-    if (rn === 'admin' && (user.isAdmin || user.is_admin)) return true;
     return false;
   }
 
@@ -177,34 +116,9 @@
     container.appendChild(wrap);
   }
 
-  /* ---------- Elections / Announcements / Projects (fallback localStorage) ---------- */
-  const FALLBACK_LS_KEYS = { elections: 'ssg:elections', announcements: 'ssg:announcements', projects: 'ssg:projects' };
-  function lsRead(key) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : []; } catch (e) { return []; } }
-  function lsWrite(key, arr) { try { localStorage.setItem(key, JSON.stringify(arr)); } catch (e) {} }
-  const ClientFallback = { list(type){return Promise.resolve(lsRead(FALLBACK_LS_KEYS[type]));}, create(type,data){const arr=lsRead(FALLBACK_LS_KEYS[type]); const id='c'+Math.random().toString(36).slice(2,9); const rec=Object.assign({id,createdAt:new Date().toISOString()},data); arr.unshift(rec); lsWrite(FALLBACK_LS_KEYS[type],arr); return Promise.resolve(rec);}, remove(type,id){let arr=lsRead(FALLBACK_LS_KEYS[type]); arr=arr.filter(i=>String(i.id)!==String(id)); lsWrite(FALLBACK_LS_KEYS[type],arr); return Promise.resolve(true);} };
-  const Elections = { list(){return ClientFallback.list('elections');}, create(o){return ClientFallback.create('elections',o);}, remove(id){return ClientFallback.remove('elections',id);} };
-  const Announcements = { list(){return ClientFallback.list('announcements');}, create(o){return ClientFallback.create('announcements',o);}, remove(id){return ClientFallback.remove('announcements',id);} };
-  const Projects = { list(){return ClientFallback.list('projects');}, create(o){return ClientFallback.create('projects',o);}, remove(id){return ClientFallback.remove('projects',id);} };
-
-  function renderList(container, items, type, opts = {}) {
-    if (!container) return; container.innerHTML = '';
-    if (!items || items.length === 0) { container.innerHTML = `<div class="ssg-empty">No ${type}</div>`; return; }
-    const frag = document.createDocumentFragment();
-    items.forEach(it => {
-      const card = document.createElement('div'); card.className = `ssg-${type}-card`;
-      card.innerHTML = `<h4>${escapeHtml(it.title ?? it.name ?? '')}</h4><div>${escapeHtml(it.description ?? '')}</div>`;
-      if (opts.allowEdit) {
-        const a = document.createElement('div'); a.className='ssg-actions'; const del = document.createElement('button'); del.className='btn btn-sm btn-danger'; del.textContent='Delete';
-        del.addEventListener('click', async () => { if (!confirm('Delete?')) return; await opts.onRemove(it.id); card.remove(); }); a.appendChild(del); card.appendChild(a);
-      }
-      frag.appendChild(card);
-    });
-    container.appendChild(frag);
-  }
-
   /* ---------- Auto-init ---------- */
   async function initAuto() {
-    const currentUser = await getCurrentUser();
+    const currentUser = Auth.getUser();
 
     const membersContainer = $id('ssg-members-table') || $id('ssg-members-list');
     if (membersContainer) { try { const ms = await loadMembers(); renderMembersTable(membersContainer, ms, { currentUser }); } catch (e) { membersContainer.innerHTML = '<div class="ssg-error">Failed to load members</div>'; } }
@@ -218,9 +132,7 @@
   /* ---------- Public API ---------- */
   window.SSG = Object.assign(window.SSG || {}, {
     loadMembers, createMember, deleteMember, renderMembersTable,
-    loadEvents, createEvent, deleteEvent, renderEvents,
-    Elections, Announcements, Projects,
-    fetchJson, getCurrentUser, hasRole
+    loadEvents, createEvent, deleteEvent, renderEvents
   });
 
 })();
