@@ -1,3 +1,5 @@
+//controllers/communicationControllers.js
+
 const Announcement = require("../models/Announcement");
 
 exports.createAnnouncement = async (req, res) => {
@@ -94,3 +96,4 @@ exports.deleteAnnouncement = async (req, res) => {
     res.status(500).json({ message: "Error deleting announcement", error: err.message });
   }
 };
+
