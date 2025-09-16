@@ -22,6 +22,7 @@ const sectionSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Add method to check if section has space for more students
 sectionSchema.methods.hasSpace = function () {
   return this.students.length < this.capacity;
 };
