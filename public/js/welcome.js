@@ -4,7 +4,7 @@
 
   const api = {
     me: '/api/auth/me',
-    logout: '/api/auth/logout',
+    logout: '/api/auth/logout', // unused for JWT
     announcements: '/api/announcements',
     ssgAnnouncements: '/api/ssgAnnouncements',
     ssgProjects: '/api/ssgProjects',
@@ -13,7 +13,14 @@
   };
 
   function qs(sel){ return document.querySelector(sel); }
-  function qsa(sel){ return Array.from(document.querySelectorAll(sel)); }
+
+  async function fetchJson(url, opts = {}){
+    const token = localStorage.getItem("edusec_token");
+    const headers = { 'Accept': 'application/json', ...(opts.headers || {}) };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const cfg = Object.assign({ headers }, opts);
+    return fetch(url, cfg);
+  }
 
   function showModal(html){
     const root = qs('#modalRoot');
@@ -35,14 +42,6 @@
     const r = qs('#modalRoot');
     r.style.display='none';
     r.innerHTML='';
-  }
-
-  async function fetchJson(url, opts = {}){
-    const cfg = Object.assign({
-      credentials: 'include',
-      headers: { 'Accept': 'application/json' }
-    }, opts);
-    return fetch(url, cfg);
   }
 
   function niceDate(dStr){
@@ -145,7 +144,7 @@
         return;
       }
       container.innerHTML = '';
-            items.slice(0,5).forEach(p=>{
+      items.slice(0,5).forEach(p=>{
         const el = document.createElement('div');
         el.className = 'project';
         el.innerHTML =
@@ -174,24 +173,13 @@
 
   function updateClock(){
     const now = new Date();
-    const optionsTime = {
-      hour12: false,
-      timeZone: 'Asia/Manila'
-    };
-    const optionsDate = {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      timeZone: 'Asia/Manila'
-    };
-    qs('#clock').textContent = now.toLocaleTimeString('en-PH', optionsTime);
-    qs('#todayDate').textContent = 'Today is ' + now.toLocaleDateString('en-PH', optionsDate);
+    qs('#clock').textContent = now.toLocaleTimeString('en-PH', {hour12: false,timeZone:'Asia/Manila'});
+    qs('#todayDate').textContent = 'Today is ' + now.toLocaleDateString('en-PH', {
+      weekday:'long',year:'numeric',month:'long',day:'numeric',timeZone:'Asia/Manila'
+    });
   }
 
-  // … impersonation helpers unchanged …
-
-  // init
+  // === INIT ===
   document.addEventListener('DOMContentLoaded', async ()=>{
     try{
       const res = await fetchJson(api.me);
@@ -202,6 +190,7 @@
       const j = await res.json();
       const user = j.user || j;
       window.__EDUSEC__ = { user };
+
       qs('#userName').textContent = user.name || user.email || user.username || 'User';
       qs('#userRole').textContent = user.role || 'User';
 
@@ -218,26 +207,25 @@
       updateClock();
       setInterval(updateClock, 1000);
 
-      // if SSG, load extras
+      // load SSG extras
       if(user.role === 'SSG' || user.isSSG || (user.extraRoles || []).includes('SSG')){
         loadSSGAnnouncements();
         loadSSGProjects();
       }
+
     }catch(err){
       console.error('Welcome load error',err);
       location.href = '../html/login.html';
     }
 
     const logoutBtn = qs('#logoutBtn');
-    if(logoutBtn){
-      logoutBtn.addEventListener('click', async ()=>{
-        try{
-          await fetchJson(api.logout,{method:'POST'});
-        }catch(e){}
-        sessionStorage.removeItem('EDUSEC_originalSuperAdmin');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', () => {
+        localStorage.removeItem("edusec_token");
         location.href = '../html/login.html';
       });
     }
   });
 })();
+
 
