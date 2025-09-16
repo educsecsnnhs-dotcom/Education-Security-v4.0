@@ -25,7 +25,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Allow frontend (any domain) to send cookies
 app.use(cors({
-  origin: process.env.FRONTEND_ORIGIN || 'http://localhost:3000', // Change to your frontend URL
+  origin: process.env.FRONTEND_ORIGIN || 'https://education-security-v4-0.onrender.com', // Change to your frontend URL
   credentials: true, // allow cookies
 }));
 
