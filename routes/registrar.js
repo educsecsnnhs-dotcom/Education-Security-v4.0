@@ -27,7 +27,7 @@ router.get("/sections", authRequired, requireRole("Registrar"), registrar.getSec
 // Stats
 router.get("/stats", authRequired, requireRole("Registrar"), registrar.getEnrollmentStats);
 
-// Role assignment (Registrar = give-only)
+// Role assignment
 router.post("/assign-role", authRequired, requireRole("Registrar"), registrar.assignRole);
 
 module.exports = router;
