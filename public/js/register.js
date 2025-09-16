@@ -1,4 +1,3 @@
-// public/js/register.js
 document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("registerForm");
   if (!form) return;
@@ -15,10 +14,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     try {
+      const encryptedPassword = caesarEncrypt(password); // Encrypt password with Caesar cipher
+
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password: encryptedPassword })
       });
 
       const data = await res.json().catch(() => ({}));
@@ -43,4 +44,3 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 });
-
