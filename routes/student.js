@@ -7,3 +7,4 @@ const { authRequired, requireRole } = require("../middleware/authMiddleware");
 router.get("/grades", authRequired, requireRole("Student"), academics.getMyGrades);
 
 module.exports = router;
+
