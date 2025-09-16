@@ -48,7 +48,7 @@ const ssgSchema = new mongoose.Schema(
     posts: [postSchema],
     votes: [voteSchema],
   },
-  { timestamps: true }
+  { timestamps: true } // Automatically handles creation and update timestamps
 );
 
 module.exports = mongoose.model("SSG", ssgSchema);
