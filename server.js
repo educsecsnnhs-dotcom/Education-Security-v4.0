@@ -1,6 +1,3 @@
-// server.js
-// Cloud-ready server with MongoDB and route mounting
-
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
@@ -102,6 +99,17 @@ try {
 app.use(express.static(path.join(ROOT, 'public')));
 
 // ------------------------------
+// Fallback → login.html if exists
+// ------------------------------
+app.get('*', (req, res) => {
+  const loginPage = path.join(__dirname, 'public', 'html', 'login.html');
+  if (fs.existsSync(loginPage)) {
+    return res.sendFile(loginPage);  // Serve login.html as the landing page
+  }
+  return res.status(404).send('Not Found');
+});
+
+// ------------------------------
 // Unified Error Handler
 // ------------------------------
 app.use((err, req, res, next) => {
@@ -110,15 +118,6 @@ app.use((err, req, res, next) => {
     message: 'Server error',
     error: err.message || String(err),
   });
-});
-
-// ------------------------------
-// Fallback → login.html if exists
-// ------------------------------
-app.get('*', (req, res) => {
-  const login = path.join(__dirname, 'public', 'html', 'login.html');
-  if (fs.existsSync(login)) return res.sendFile(login);
-  return res.status(404).send('Not Found');
 });
 
 // ------------------------------
