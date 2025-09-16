@@ -66,24 +66,30 @@ exports.unlockUser = async (req, res) => {
 };
 
 /**
- * Impersonate a user (helpful for testing) - sets session to target user
- * WARNING: only SuperAdmin should call this in production.
+ * Impersonate a user (helpful for testing) - now issues a JWT
  */
+const jwt = require("jsonwebtoken");
+
 exports.impersonate = async (req, res) => {
   try {
     const { userId } = req.body;
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    // Set minimal session user
-    req.session.user = {
-      id: user._id.toString(),
-      username: user.username,
-      role: user.role,
-      fullName: user.fullName,
-      lrn: user.lrn,
-    };
-    res.json({ message: "Impersonation active", user: req.session.user });
+    // 🔑 Generate a JWT instead of session
+    const token = jwt.sign(
+      {
+        id: user._id.toString(),
+        username: user.username,
+        role: user.role,
+        fullName: user.fullName,
+        lrn: user.lrn,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    res.json({ message: "Impersonation active", token });
   } catch (err) {
     res.status(500).json({ message: "Error impersonating", error: err.message });
   }
