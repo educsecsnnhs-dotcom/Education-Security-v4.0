@@ -58,7 +58,6 @@ mongoose.connection.on('disconnected', () => {
 // ------------------------------
 app.set('trust proxy', 1);
 
-
 // ------------------------------
 // Routes Auto-Mounting (generic)
 // ------------------------------
@@ -134,32 +133,6 @@ app.use((req, res, next) => {
   }
   next();
 });
-
-// ------------------------------
-// Routes Auto-Mounting
-// ------------------------------
-const routesDir = path.join(ROOT, 'routes');
-if (fs.existsSync(routesDir)) {
-  fs.readdirSync(routesDir).forEach(f => {
-    if (!f.endsWith('.js')) return;
-    const base = '/' + path.basename(f, '.js');
-    const router = require(path.join(routesDir, f));
-    app.use('/api' + base, router);
-
-    const plural = '/api/' + (base.slice(1) + 's');
-    if (plural !== '/api' + base) {
-      app.use(plural, router);
-    }
-  });
-}
-
-// Compat routes for old frontend endpoints
-try {
-  const compat = require('./routes/compat');
-  app.use('/api', compat);
-} catch (err) {
-  console.warn('Compat router not loaded:', err.message);
-}
 
 // ------------------------------
 // Static Frontend
