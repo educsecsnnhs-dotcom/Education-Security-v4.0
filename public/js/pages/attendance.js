@@ -5,8 +5,9 @@ document.addEventListener("DOMContentLoaded", () => {
   Auth.requireLogin();
   const user = Auth.getUser();
 
+  // 🔹 Use edusec_token consistently
   function authHeaders(extra={}) {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("edusec_token");
     return { ...extra, Authorization: token ? `Bearer ${token}` : "" };
   }
 
@@ -160,5 +161,10 @@ document.addEventListener("DOMContentLoaded", () => {
     submitBtn.addEventListener("click", submitAttendance);
   }
   if (["Registrar", "Admin", "SuperAdmin"].includes(user.role)) loadAudit();
-});
 
+  // 🔹 Fix logout to clear edusec_token and go to correct login page
+  document.getElementById("logoutBtn")?.addEventListener("click", () => {
+    localStorage.removeItem("edusec_token");
+    location.href = "/html/login.html";
+  });
+});
