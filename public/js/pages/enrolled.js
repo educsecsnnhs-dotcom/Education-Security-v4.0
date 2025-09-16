@@ -2,19 +2,20 @@
 (async function(){
   const el = id => document.getElementById(id);
 
-  function authHeaders() {
-    const token = localStorage.getItem("edusec_token");
-    return token ? { "Authorization": `Bearer ${token}` } : {};
+  // 🔹 Function to check if the user has a valid role
+  function hasAccess(roles) {
+    const user = JSON.parse(localStorage.getItem("user"));
+    return roles.includes(user?.role);
   }
 
   async function loadEnrolled(){
     const cont = el('enrolledList');
     cont.innerHTML = '<div class="muted small">Loading enrolled students…</div>';
-    try{
-      // 🔹 PageUtils.fetchJson already returns parsed JSON
+    try {
+      // Use localStorage data for the user role (no JWT token involved)
       const j = await PageUtils.fetchJson('/api/registrar/enrolled', {
         method: 'GET',
-        headers: authHeaders()
+        headers: {}  // No JWT required
       });
 
       const items = j.data || j.enrolled || j.students || j || [];
@@ -41,8 +42,16 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    // 🔹 Role-based access control: Allow only Registrar, Admin, and SuperAdmin to access this page
+    const user = JSON.parse(localStorage.getItem("user"));
+    if (!user || !hasAccess(['Registrar', 'Admin', 'SuperAdmin'])) {
+      location.href = '/html/login.html';  // Redirect if the role does not have access
+      return;
+    }
+
+    // Add logout functionality
     el('logoutBtn')?.addEventListener('click', () => {
-      localStorage.removeItem("edusec_token");
+      localStorage.removeItem("user");
       location.href = '/html/login.html';
     });
 
