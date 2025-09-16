@@ -4,8 +4,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const el = (id) => document.getElementById(id);
   const cont = el("archivesList");
 
+  // 🔹 Standardized to edusec_token
   function authHeaders(extra={}) {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("edusec_token");
     return {
       ...extra,
       Authorization: token ? `Bearer ${token}` : ""
@@ -49,8 +50,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // 🔹 Fix logout to use edusec_token and correct href
   el("logoutBtn")?.addEventListener("click", () => {
-    localStorage.removeItem("token");
+    localStorage.removeItem("edusec_token");
     location.href = "/html/login.html";
   });
 
