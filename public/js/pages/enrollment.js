@@ -10,7 +10,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const token = Auth.getToken();
 
   if (!user || !token) {
-    window.location.href = "/login.html";
+    window.location.href = "/html/login.html"; // 🔹 fixed path
     return;
   }
 
@@ -69,7 +69,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // Just clear localStorage/sessionStorage since JWT is client-stored
         Auth.logout();
       } catch (e) {}
-      location.href = "/html/login.html";
+      location.href = "/html/login.html"; // 🔹 fixed path
     });
   }
 
@@ -125,7 +125,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!res.ok) throw new Error(data.message || "Enrollment failed");
 
         msg.textContent = "✅ Enrollment submitted! Wait for registrar approval.";
-        setTimeout(() => (window.location.href = "/welcome.html"), 1200);
+        setTimeout(() => (window.location.href = "/html/welcome.html"), 1200); // 🔹 fixed path
       } catch (err) {
         console.error("Enrollment error:", err);
         msg.textContent = "❌ Failed to submit: " + err.message;
