@@ -1,18 +1,11 @@
 // routes/ssgProjects.js
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const Project = require('../models/SSGProject');
-
-// Middleware: ensure logged-in
-function requireAuth(req, res, next) {
-  if (!req.session.user) {
-    return res.status(401).json({ message: 'Unauthorized' });
-  }
-  next();
-}
+const Project = require("../models/SSGProject");
+const { authRequired, requireAnyRole } = require("../middleware/authMiddleware");
 
 // GET all projects
-router.get('/', async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     const projects = await Project.find().sort({ createdAt: -1 });
     res.json(projects);
@@ -21,18 +14,14 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST new project (SSG only)
-router.post('/', requireAuth, async (req, res) => {
+// POST new project (SSG or SuperAdmin only)
+router.post("/", authRequired, requireAnyRole(["SSG", "SuperAdmin"]), async (req, res) => {
   try {
-    if (req.session.user.role !== 'SSG' && req.session.user.role !== 'SuperAdmin') {
-      return res.status(403).json({ message: 'Forbidden' });
-    }
-
     const project = new Project({
       name: req.body.name,
       description: req.body.description,
-      status: req.body.status || 'Planned',
-      createdBy: req.session.user.username
+      status: req.body.status || "Planned",
+      createdBy: req.user.username,
     });
 
     await project.save();
@@ -43,18 +32,13 @@ router.post('/', requireAuth, async (req, res) => {
 });
 
 // PATCH project status
-router.patch('/:id', requireAuth, async (req, res) => {
+router.patch("/:id", authRequired, requireAnyRole(["SSG", "SuperAdmin"]), async (req, res) => {
   try {
-    if (req.session.user.role !== 'SSG' && req.session.user.role !== 'SuperAdmin') {
-      return res.status(403).json({ message: 'Forbidden' });
-    }
-
     const project = await Project.findByIdAndUpdate(
       req.params.id,
       { status: req.body.status },
       { new: true }
     );
-
     res.json(project);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -62,14 +46,10 @@ router.patch('/:id', requireAuth, async (req, res) => {
 });
 
 // DELETE project
-router.delete('/:id', requireAuth, async (req, res) => {
+router.delete("/:id", authRequired, requireAnyRole(["SSG", "SuperAdmin"]), async (req, res) => {
   try {
-    if (req.session.user.role !== 'SSG' && req.session.user.role !== 'SuperAdmin') {
-      return res.status(403).json({ message: 'Forbidden' });
-    }
-
     await Project.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Deleted' });
+    res.json({ message: "Deleted" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
