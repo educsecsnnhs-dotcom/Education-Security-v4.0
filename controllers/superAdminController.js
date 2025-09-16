@@ -22,6 +22,7 @@ exports.updateUserRole = async (req, res) => {
     const { userId, role } = req.body;
     const valid = ["Student", "Registrar", "Admin", "Moderator", "SSG", "SuperAdmin", "User"];
     if (!valid.includes(role)) return res.status(400).json({ message: "Invalid role" });
+
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
@@ -41,6 +42,7 @@ exports.lockUser = async (req, res) => {
     const { userId } = req.body;
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
+
     user.locked = true;
     await user.save();
     res.json({ message: "User locked", user: { id: user._id, username: user.username } });
@@ -57,6 +59,7 @@ exports.unlockUser = async (req, res) => {
     const { userId } = req.body;
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
+
     user.locked = false;
     await user.save();
     res.json({ message: "User unlocked", user: { id: user._id, username: user.username } });
@@ -66,30 +69,16 @@ exports.unlockUser = async (req, res) => {
 };
 
 /**
- * Impersonate a user (helpful for testing) - now issues a JWT
+ * Impersonate a user (helpful for testing)
  */
-const jwt = require("jsonwebtoken");
-
 exports.impersonate = async (req, res) => {
   try {
     const { userId } = req.body;
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    // 🔑 Generate a JWT instead of session
-    const token = jwt.sign(
-      {
-        id: user._id.toString(),
-        username: user.username,
-        role: user.role,
-        fullName: user.fullName,
-        lrn: user.lrn,
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: "1h" }
-    );
-
-    res.json({ message: "Impersonation active", token });
+    // Direct impersonation logic, no JWT token involved
+    res.json({ message: "Impersonation active", user: { id: user._id, username: user.username, role: user.role } });
   } catch (err) {
     res.status(500).json({ message: "Error impersonating", error: err.message });
   }
