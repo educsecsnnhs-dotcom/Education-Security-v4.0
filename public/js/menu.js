@@ -1,4 +1,3 @@
-// public/js/menu.js
 window.__EDUSEC_MENU = (function(){
   const menus = {
     User: [
@@ -33,10 +32,14 @@ window.__EDUSEC_MENU = (function(){
     ],
   };
 
-  function buildMenuForUser(user) {
-    const role = user && user.role;
-    let finalMenu = [...menus.User];
+  // Build the menu based on the user's role stored in localStorage
+  function buildMenuForUser() {
+    const role = localStorage.getItem("user_role"); // Get user role from localStorage
+    if (!role) return []; // If no role found, return empty menu
 
+    let finalMenu = [...menus.User]; // Default menu for all users
+
+    // Add role-specific menu items
     if (role === "SuperAdmin") {
       Object.keys(menus).forEach(r => {
         if (r !== "SuperAdmin") finalMenu.push(...menus[r]);
@@ -45,14 +48,16 @@ window.__EDUSEC_MENU = (function(){
       finalMenu = [...finalMenu, ...menus[role]];
     }
 
-    if (user && user.extraRoles && Array.isArray(user.extraRoles)) {
-      user.extraRoles.forEach(r => { if (menus[r]) finalMenu.push(...menus[r]); });
-    }
+    // Include extra roles (e.g., if the user has extra roles like SSG)
+    const extraRoles = JSON.parse(localStorage.getItem("extra_roles") || "[]");
+    extraRoles.forEach(r => { if (menus[r]) finalMenu.push(...menus[r]); });
 
-    if (user && (user.isSSG || role === "SSG")) {
+    // Include SSG if user is in SSG or has the `isSSG` flag
+    if (localStorage.getItem("isSSG") === "true" || role === "SSG") {
       finalMenu.push(...menus.SSG);
     }
 
+    // Remove duplicate items
     const seen = new Set();
     return finalMenu.filter(item => {
       if (seen.has(item.name)) return false;
@@ -61,6 +66,7 @@ window.__EDUSEC_MENU = (function(){
     });
   }
 
+  // Render the sidebar menu based on the generated menu
   function renderSidebar(menu) {
     const menuList = document.getElementById("menuList");
     if (!menuList) return;
@@ -76,6 +82,7 @@ window.__EDUSEC_MENU = (function(){
     });
   }
 
+  // Render quick actions (buttons) based on the menu
   function renderQuickActions(menu) {
     const container = document.getElementById("quickActions");
     if (!container) return;
@@ -88,6 +95,13 @@ window.__EDUSEC_MENU = (function(){
       container.appendChild(btn);
     });
   }
+
+  // Initialize the menu rendering after DOM is loaded
+  document.addEventListener("DOMContentLoaded", () => {
+    const menu = buildMenuForUser(); // Get the menu based on the user's role
+    renderSidebar(menu); // Render sidebar menu
+    renderQuickActions(menu); // Render quick action buttons
+  });
 
   return {
     buildMenuForUser,
