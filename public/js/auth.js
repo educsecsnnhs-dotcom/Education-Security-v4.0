@@ -1,41 +1,29 @@
-// public/js/auth.js
-
 // 🔹 Caesar Cipher (MUST match backend /utils/caesar.js)
 function caesarEncrypt(str, shift = 3) {
-  return str
-    .split("")
-    .map(char => {
-      const code = char.charCodeAt(0);
-
-      // A–Z
-      if (code >= 65 && code <= 90) {
-        return String.fromCharCode(((code - 65 + shift) % 26) + 65);
-      }
-      // a–z
-      if (code >= 97 && code <= 122) {
-        return String.fromCharCode(((code - 97 + shift) % 26) + 97);
-      }
-      // 0–9
-      if (code >= 48 && code <= 57) {
-        return String.fromCharCode(((code - 48 + shift) % 10) + 48);
-      }
-
-      return char;
-    })
-    .join("");
+  return str.split("").map(char => {
+    const code = char.charCodeAt(0);
+    if (code >= 65 && code <= 90) return String.fromCharCode(((code - 65 + shift) % 26) + 65);
+    if (code >= 97 && code <= 122) return String.fromCharCode(((code - 97 + shift) % 26) + 97);
+    if (code >= 48 && code <= 57) return String.fromCharCode(((code - 48 + shift) % 10) + 48);
+    return char;
+  }).join("");
 }
 
-// 🔹 Auth object (purely backend-session based)
+// 🔹 Auth object
 const Auth = {
-  async logout() {
-    try {
-      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-    } catch (err) {
-      console.error("Logout error:", err);
-    } finally {
-      window.location.href = "/index.html";
-    }
+  saveToken(token) {
+    localStorage.setItem("edusec_token", token);
   },
+  getToken() {
+    return localStorage.getItem("edusec_token");
+  },
+  clearToken() {
+    localStorage.removeItem("edusec_token");
+  },
+  async logout() {
+    Auth.clearToken();
+    window.location.href = "/index.html";
+  }
 };
 
 /* ---------------------- 🔹 Forms ---------------------- */
@@ -55,14 +43,14 @@ document.addEventListener("DOMContentLoaded", () => {
         const res = await fetch("/api/auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          credentials: "include", // required for cookie session
-          body: JSON.stringify({ email: formData.email, password: encryptedPassword }),
+          body: JSON.stringify({ email: formData.email, password: encryptedPassword })
         });
 
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.message || "Login failed");
 
-        // ✅ No frontend storage — rely on backend cookie
+        if (data.token) Auth.saveToken(data.token);
+
         const role = data.user?.role || "default";
         switch (role) {
           case "Registrar": window.location.href = "/registrar.html"; break;
@@ -90,8 +78,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const res = await fetch("/api/auth/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ email: formData.email, password: encryptedPassword }),
+          body: JSON.stringify({ email: formData.email, password: encryptedPassword })
         });
 
         const data = await res.json().catch(() => ({}));
