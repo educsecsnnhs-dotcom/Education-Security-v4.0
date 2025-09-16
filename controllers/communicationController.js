@@ -1,13 +1,14 @@
 //controllers/communicationControllers.js
 
 const Announcement = require("../models/Announcement");
+const Event = require("../models/Event");  // Assuming you have an Event model
 
+// Create Announcement
 exports.createAnnouncement = async (req, res) => {
   try {
-    // Getting role and department from the request body or headers (this should come from frontend logic)
     const { scope, title, content, department } = req.body;
-    const userRole = req.headers['x-user-role'];  // The role should be passed from the frontend (e.g., from localStorage)
-    const userDept = req.headers['x-user-department'];  // The department should also be passed
+    const userRole = req.headers['x-user-role'];  // Role from frontend
+    const userDept = req.headers['x-user-department'];  // Department from frontend
 
     if (!userRole) {
       return res.status(400).json({ message: "Role is required" });
@@ -31,7 +32,7 @@ exports.createAnnouncement = async (req, res) => {
       department: dept,
       title,
       content,
-      createdBy: req.user._id,  // Assuming the user ID is still available
+      createdBy: req.user._id,
     });
 
     await ann.save();
@@ -41,10 +42,11 @@ exports.createAnnouncement = async (req, res) => {
   }
 };
 
+// Get Announcements
 exports.getAnnouncements = async (req, res) => {
   try {
-    const userRole = req.headers['x-user-role'];  // Get role from headers (passed from frontend)
-    const userDept = req.headers['x-user-department'];  // Get department from headers
+    const userRole = req.headers['x-user-role'];
+    const userDept = req.headers['x-user-department'];
 
     if (!userRole) {
       return res.status(400).json({ message: "Role is required" });
@@ -53,7 +55,6 @@ exports.getAnnouncements = async (req, res) => {
     let filter = {};
 
     if (req.params.deptId) {
-      // GET /api/announcements/department/:deptId
       filter = { scope: "department", department: req.params.deptId };
     } else {
       if (userRole === "Student") {
@@ -66,7 +67,6 @@ exports.getAnnouncements = async (req, res) => {
           ],
         };
       }
-      // SuperAdmin sees everything
     }
 
     const anns = await Announcement.find(filter)
@@ -79,12 +79,13 @@ exports.getAnnouncements = async (req, res) => {
   }
 };
 
+// Delete Announcement
 exports.deleteAnnouncement = async (req, res) => {
   try {
     const ann = await Announcement.findById(req.params.id);
     if (!ann) return res.status(404).json({ message: "Not found" });
 
-    const userRole = req.headers['x-user-role'];  // Get role from headers (passed from frontend)
+    const userRole = req.headers['x-user-role'];
 
     if (userRole !== "SuperAdmin" && !ann.createdBy.equals(req.user._id)) {
       return res.status(403).json({ message: "Unauthorized" });
@@ -97,3 +98,67 @@ exports.deleteAnnouncement = async (req, res) => {
   }
 };
 
+// Create Event
+exports.createEvent = async (req, res) => {
+  try {
+    const { title, description, date, department } = req.body;
+    const userRole = req.headers['x-user-role'];  // Role from frontend
+    const userDept = req.headers['x-user-department'];  // Department from frontend
+
+    if (!userRole) {
+      return res.status(400).json({ message: "Role is required" });
+    }
+
+    if (!title || !description || !date) {
+      return res.status(400).json({ message: "Title, description, and date are required" });
+    }
+
+    let dept = department || userDept;
+
+    const event = new Event({
+      title,
+      description,
+      date,
+      department: dept,
+      createdBy: req.user._id,
+    });
+
+    await event.save();
+    res.status(201).json(event);
+  } catch (err) {
+    res.status(500).json({ message: "Error creating event", error: err.message });
+  }
+};
+
+// Get Events
+exports.getEvents = async (req, res) => {
+  try {
+    const userRole = req.headers['x-user-role'];
+    const userDept = req.headers['x-user-department'];
+
+    if (!userRole) {
+      return res.status(400).json({ message: "Role is required" });
+    }
+
+    let filter = {};
+
+    if (userRole === "Student") {
+      filter = { department: userDept };  // Students see events for their department
+    } else if (["Moderator", "Admin"].includes(userRole)) {
+      filter = { department: userDept };  // Admins and Moderators see events for their department
+    }
+
+    // SuperAdmins see all events
+    if (userRole === "SuperAdmin") {
+      filter = {};
+    }
+
+    const events = await Event.find(filter)
+      .populate("createdBy", "name role")
+      .sort({ date: 1 });  // Sort events by date ascending
+
+    res.json(events);
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching events", error: err.message });
+  }
+};
