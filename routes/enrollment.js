@@ -17,7 +17,7 @@ const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 router.post(
   "/",
   authRequired,
-  requireRole("User"), // ✅ changed from "Student"
+  requireRole("User"),
   upload.fields([
     { name: "reportCard", maxCount: 1 },
     { name: "goodMoral", maxCount: 1 },
@@ -35,3 +35,4 @@ router.patch("/:id/approve", authRequired, requireRole("Admin"), enrollmentCtrl.
 router.patch("/:id/reject", authRequired, requireRole("Admin"), enrollmentCtrl.rejectEnrollment);
 
 module.exports = router;
+
