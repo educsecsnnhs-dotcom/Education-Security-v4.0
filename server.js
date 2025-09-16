@@ -1,5 +1,5 @@
 // server.js
-// Cloud-ready server with MongoDB, JWT auth, and route mounting
+// Cloud-ready server with MongoDB and route mounting
 
 require('dotenv').config();
 const express = require('express');
@@ -21,7 +21,7 @@ app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Allow frontend (JWT via Authorization header)
+// Allow frontend
 app.use(cors({
   origin: process.env.FRONTEND_ORIGIN || 'https://education-security-v4-0.onrender.com',
 }));
