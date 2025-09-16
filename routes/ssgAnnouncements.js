@@ -1,18 +1,11 @@
 // routes/ssgAnnouncements.js
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const Announcement = require('../models/SSGAnnouncement');
-
-// Middleware: ensure logged-in
-function requireAuth(req, res, next) {
-  if (!req.session.user) {
-    return res.status(401).json({ message: 'Unauthorized' });
-  }
-  next();
-}
+const Announcement = require("../models/SSGAnnouncement");
+const { authRequired, requireAnyRole } = require("../middleware/authMiddleware");
 
 // GET all announcements
-router.get('/', async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     const announcements = await Announcement.find().sort({ createdAt: -1 });
     res.json(announcements);
@@ -21,17 +14,13 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST new announcement (SSG only)
-router.post('/', requireAuth, async (req, res) => {
+// POST new announcement (SSG or SuperAdmin only)
+router.post("/", authRequired, requireAnyRole(["SSG", "SuperAdmin"]), async (req, res) => {
   try {
-    if (req.session.user.role !== 'SSG' && req.session.user.role !== 'SuperAdmin') {
-      return res.status(403).json({ message: 'Forbidden' });
-    }
-
     const ann = new Announcement({
       title: req.body.title,
       body: req.body.body,
-      createdBy: req.session.user.username
+      createdBy: req.user.username,
     });
 
     await ann.save();
@@ -42,17 +31,14 @@ router.post('/', requireAuth, async (req, res) => {
 });
 
 // DELETE announcement
-router.delete('/:id', requireAuth, async (req, res) => {
+router.delete("/:id", authRequired, requireAnyRole(["SSG", "SuperAdmin"]), async (req, res) => {
   try {
-    if (req.session.user.role !== 'SSG' && req.session.user.role !== 'SuperAdmin') {
-      return res.status(403).json({ message: 'Forbidden' });
-    }
-
     await Announcement.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Deleted' });
+    res.json({ message: "Deleted" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
 module.exports = router;
+
