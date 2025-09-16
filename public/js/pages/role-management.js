@@ -1,17 +1,9 @@
-// public/js/pages/role-management.js
-// Final merged Role Management UI (aligned with backend).
-// - SuperAdmin: can assign/remove Registrar, Admin, Moderator, SSG, and impersonate users
-// - Registrar: can assign Moderator, Admin, SSG only (cannot remove, cannot assign Registrar/SuperAdmin)
-// - No "Student" in dropdown (handled only by enrollment approval)
-// - Uses apiFetch(), Auth.getUser(), and /api/superadmin/* endpoints
-
 document.addEventListener("DOMContentLoaded", async () => {
-  if (typeof apiFetch !== "function") throw new Error("apiFetch() is required (utils.js)");
-  if (!window.Auth || typeof Auth.getUser !== "function") throw new Error("Auth.getUser() is required (auth.js)");
+  // 🔹 Get the current user from localStorage (No JWT or session check)
+  const currentUser = JSON.parse(localStorage.getItem("user_role")); // Get role from localStorage
 
-  const currentUser = Auth.getUser();
   if (!currentUser) {
-    window.location.href = "/html/login.html";
+    window.location.href = "/login.html"; // Redirect to login if the user is not logged in
     return;
   }
 
