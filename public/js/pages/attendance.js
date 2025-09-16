@@ -2,22 +2,11 @@
 // Unified Attendance System: Student (view), Moderator (submit), Registrar/Admin (audit)
 
 document.addEventListener("DOMContentLoaded", () => {
-  Auth.requireLogin();
-  const user = Auth.getUser();
+  const user = JSON.parse(localStorage.getItem("user"));  // User info stored in localStorage
 
-  // 🔹 Use edusec_token consistently
-  function authHeaders(extra={}) {
-    const token = localStorage.getItem("edusec_token");
-    return { ...extra, Authorization: token ? `Bearer ${token}` : "" };
-  }
-
-  async function apiFetch(url, opts={}) {
-    const res = await fetch(url, {
-      ...opts,
-      headers: authHeaders({ "Content-Type": "application/json", ...(opts.headers||{}) }),
-    });
-    if(!res.ok) throw new Error("Request failed");
-    return res.json();
+  // 🔹 Function to check if user has access
+  function hasAccess(roles) {
+    return roles.includes(user?.role);
   }
 
   const attendanceTable = document.getElementById("attendanceTable");
@@ -29,6 +18,15 @@ document.addEventListener("DOMContentLoaded", () => {
   if (dateInput) {
     const today = new Date().toISOString().split("T")[0];
     dateInput.value = today;
+  }
+
+  async function apiFetch(url, opts = {}) {
+    const res = await fetch(url, {
+      ...opts,
+      headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
+    });
+    if (!res.ok) throw new Error("Request failed");
+    return res.json();
   }
 
   async function loadStudentAttendance() {
@@ -139,6 +137,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // Load relevant data based on user role
   if (user.role === "Student") loadStudentAttendance();
   if (user.role === "Moderator") {
     apiFetch("/api/attendance/mySections")
@@ -162,9 +161,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   if (["Registrar", "Admin", "SuperAdmin"].includes(user.role)) loadAudit();
 
-  // 🔹 Fix logout to clear edusec_token and go to correct login page
+  // 🔹 Fix logout to clear localStorage and go to correct login page
   document.getElementById("logoutBtn")?.addEventListener("click", () => {
-    localStorage.removeItem("edusec_token");
-    location.href = "/html/login.html";
+    localStorage.removeItem("user");  // Clear user data from localStorage
+    location.href = "/html/login.html";  // Redirect to login page
   });
 });
