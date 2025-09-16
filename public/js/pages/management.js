@@ -1,37 +1,11 @@
 // public/js/pages/management.js
 document.addEventListener("DOMContentLoaded", async () => {
-  // Require Auth
-  if (!window.Auth || typeof Auth.getUser !== "function") {
-    console.error("Auth.getUser() is required (auth.js)");
+  // Check if user exists in localStorage
+  const user = JSON.parse(localStorage.getItem("user"));
+
+  if (!user || user.role !== "Admin") {
+    window.location.href = "/html/index.html"; // Redirect if not Admin
     return;
-  }
-
-  const user = Auth.getUser();
-  const token = localStorage.getItem("edusec_token");
-
-  if (!user || user.role !== "Admin" || !token) {
-    window.location.href = "/html/index.html"; // ✅ fixed path
-    return;
-  }
-
-  // Wrapper for fetch with JWT
-  async function apiFetch(url, options = {}) {
-    const opts = {
-      ...options,
-      headers: {
-        ...(options.headers || {}),
-        Authorization: `Bearer ${token}`,
-        "Content-Type": options.body ? "application/json" : undefined,
-      },
-    };
-    if (opts.body && typeof opts.body !== "string" && !(opts.body instanceof FormData)) {
-      opts.body = JSON.stringify(opts.body);
-    }
-
-    const res = await fetch(url, opts);
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.message || "Request failed");
-    return data;
   }
 
   // =======================
@@ -39,15 +13,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   // =======================
   async function loadUsers() {
     try {
-      const data = await apiFetch(`/api/users?departmentId=${user.departmentId}`);
+      const response = await fetch(`/api/users?departmentId=${user.departmentId}`);
+      const data = await response.json();
+
       const tbody = document.querySelector("#userTable tbody");
       tbody.innerHTML = "";
-      data.forEach(u => {
+      data.forEach((u) => {
         const tr = el("tr", {}, [
           el("td", {}, u.fullName || u.username || "—"),
           el("td", {}, u.email || "—"),
           el("td", {}, u.role || "—"),
-          el("td", {}, u.yearSection || "—")
+          el("td", {}, u.yearSection || "—"),
         ]);
         tbody.appendChild(tr);
       });
@@ -61,14 +37,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   // =======================
   async function loadAnnouncements() {
     try {
-      const anns = await apiFetch(`/api/announcements?departmentId=${user.departmentId}`);
+      const response = await fetch(`/api/announcements?departmentId=${user.departmentId}`);
+      const anns = await response.json();
+
       const list = document.getElementById("announcementList");
       list.innerHTML = "";
-      anns.forEach(a => {
+
+      anns.forEach((a) => {
         const li = el("li", { class: "announcement" }, [
           el("strong", {}, a.title + ": "),
           document.createTextNode(a.content),
-          el("span", { class: "meta" }, " — " + PageUtils.niceDate(a.createdAt))
+          el("span", { class: "meta" }, " — " + PageUtils.niceDate(a.createdAt)),
         ]);
         list.appendChild(li);
       });
@@ -87,9 +66,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     disableBtn(form.querySelector("button"));
     try {
-      await apiFetch("/api/announcements", {
+      await fetch("/api/announcements", {
         method: "POST",
-        body: { title, content, audience: [user.departmentId] }
+        body: JSON.stringify({ title, content, audience: [user.departmentId] }),
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       showToast("Announcement posted", "success");
       form.reset();
@@ -106,13 +88,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   // =======================
   async function loadActivity() {
     try {
-      const logs = await apiFetch(`/api/activity?departmentId=${user.departmentId}`);
+      const response = await fetch(`/api/activity?departmentId=${user.departmentId}`);
+      const logs = await response.json();
+
       const list = document.getElementById("activityList");
       list.innerHTML = "";
-      logs.forEach(log => {
+
+      logs.forEach((log) => {
         const li = el("li", {}, [
           el("span", { class: "meta" }, PageUtils.niceDate(log.time) + ": "),
-          document.createTextNode(log.user + " → " + log.action)
+          document.createTextNode(log.user + " → " + log.action),
         ]);
         list.appendChild(li);
       });
@@ -121,10 +106,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       const local = getRecentActivity(10);
       const list = document.getElementById("activityList");
       list.innerHTML = "";
-      local.forEach(l => {
+      local.forEach((l) => {
         const li = el("li", {}, [
           el("span", { class: "meta" }, PageUtils.niceDate(l.time) + ": "),
-          document.createTextNode(l.msg)
+          document.createTextNode(l.msg),
         ]);
         list.appendChild(li);
       });
@@ -138,3 +123,39 @@ document.addEventListener("DOMContentLoaded", async () => {
   loadAnnouncements();
   loadActivity();
 });
+
+// Helper functions
+function el(tag, attrs = {}, children = []) {
+  const d = document.createElement(tag);
+  for (const k in attrs) {
+    d.setAttribute(k, attrs[k]);
+  }
+  children.forEach((c) => {
+    if (c) d.appendChild(c);
+  });
+  return d;
+}
+
+function qs(selector) {
+  return document.querySelector(selector);
+}
+
+function showToast(message, type = "info") {
+  const toast = document.createElement("div");
+  toast.classList.add("toast", type);
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    toast.remove();
+  }, 3000);
+}
+
+function disableBtn(btn) {
+  btn.disabled = true;
+  btn.style.opacity = "0.6";
+}
+
+function enableBtn(btn) {
+  btn.disabled = false;
+  btn.style.opacity = "1";
+}
