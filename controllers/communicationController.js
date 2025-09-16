@@ -7,7 +7,7 @@ const Profile = require("../models/Profile");
 exports.createAnnouncement = async (req, res) => {
   try {
     const { title, content } = req.body;
-    const ann = new Announcement({ title, content, createdBy: req.user.id });
+    const ann = new Announcement({ title, content, createdBy: req.user.id }); // ✅ JWT user
     await ann.save();
     res.status(201).json({ message: "Announcement created", ann });
   } catch (err) {
@@ -29,7 +29,7 @@ exports.getAnnouncements = async (req, res) => {
 exports.createEvent = async (req, res) => {
   try {
     const { title, date, description } = req.body;
-    const ev = new Event({ title, date, description, createdBy: req.user.id });
+    const ev = new Event({ title, date, description, createdBy: req.user.id }); // ✅ JWT user
     await ev.save();
     res.status(201).json({ message: "Event created", ev });
   } catch (err) {
@@ -42,7 +42,7 @@ exports.updateProfile = async (req, res) => {
   try {
     const { bio, contact, avatar } = req.body;
     const prof = await Profile.findOneAndUpdate(
-      { user: req.user.id },
+      { user: req.user.id }, // ✅ JWT user
       { bio, contact, avatar },
       { upsert: true, new: true }
     );
