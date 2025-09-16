@@ -1,5 +1,5 @@
 // public/js/registrar.js
-// Registrar Dashboard (Cloud + MongoDB + Session-based auth)
+// Registrar Dashboard (Cloud + MongoDB + JWT-based auth)
 //
 // Features:
 // - View enrollment stats
@@ -9,7 +9,39 @@
 // - Log registrar actions locally in activity log
 
 document.addEventListener("DOMContentLoaded", () => {
-  checkAccess(["Registrar"], { redirectTo: "/welcome.html" });
+  // ✅ Require Registrar role & valid token
+  if (!window.Auth || typeof Auth.getUser !== "function" || typeof Auth.getToken !== "function") {
+    console.error("Auth.getUser() and Auth.getToken() must be defined in auth.js");
+    return;
+  }
+
+  const user = Auth.getUser();
+  const token = Auth.getToken();
+
+  if (!user || !token || user.role !== "Registrar") {
+    window.location.href = "/welcome.html";
+    return;
+  }
+
+  // 🔹 JWT fetch wrapper
+  async function apiFetch(url, options = {}) {
+    const opts = {
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+        Authorization: `Bearer ${token}`,
+        "Content-Type": options.body ? "application/json" : undefined,
+      },
+    };
+    if (opts.body && typeof opts.body !== "string" && !(opts.body instanceof FormData)) {
+      opts.body = JSON.stringify(opts.body);
+    }
+
+    const res = await fetch(url, opts);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || "Request failed");
+    return data;
+  }
 
   const enrolledCountEl = document.getElementById("enrolledCount");
   const pendingCountEl = document.getElementById("pendingCount");
@@ -98,7 +130,7 @@ document.addEventListener("DOMContentLoaded", () => {
           try {
             await apiFetch(`/api/registrar/enrollment/${id}/approve`, {
               method: "POST",
-              body: JSON.stringify({ section }),
+              body: { section },
             });
             alert("✅ Enrollee approved");
             logAction(`Approved enrollee ID: ${id} → Section ${section}`);
@@ -165,7 +197,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       await apiFetch("/api/registrar/sections", {
         method: "POST",
-        body: JSON.stringify(formData),
+        body: formData,
       });
       alert("✅ Section created");
       logAction(`Created section: ${formData.name}`);
