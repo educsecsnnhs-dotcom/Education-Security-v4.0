@@ -1,4 +1,4 @@
-// controllers/authController.js
+const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const { encryptPassword, decryptPassword } = require("../utils/caesar");
 
@@ -6,7 +6,6 @@ const { encryptPassword, decryptPassword } = require("../utils/caesar");
 exports.register = async (req, res) => {
   try {
     const { email, password } = req.body;
-
     if (!email || !password)
       return res.status(400).send("Email and password are required");
 
@@ -18,7 +17,7 @@ exports.register = async (req, res) => {
     const newUser = new User({
       email,
       password: encryptedPass,
-      role: "User", // default
+      role: "User",
       extraRoles: [],
     });
 
@@ -34,7 +33,6 @@ exports.register = async (req, res) => {
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
-
     if (!email || !password)
       return res.status(400).send("Email and password are required");
 
@@ -42,40 +40,33 @@ exports.login = async (req, res) => {
     if (!user) return res.status(400).send("Invalid credentials");
 
     const decrypted = decryptPassword(user.password);
-    if (decrypted !== password)
-      return res.status(400).send("Invalid credentials");
+    if (decrypted !== password) return res.status(400).send("Invalid credentials");
 
-    // ✅ Store session
-    req.session.user = {
+    const payload = {
       id: user._id,
       email: user.email,
       role: user.role,
       extraRoles: user.extraRoles,
     };
 
-    res.json({ message: "✅ Login successful", user: req.session.user });
+    const token = jwt.sign(payload, process.env.JWT_SECRET || "change_me_now", {
+      expiresIn: "7d",
+    });
+
+    res.json({ message: "✅ Login successful", token, user: payload });
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).send("Server error");
   }
 };
 
-// LOGOUT
+// LOGOUT (JWT is stateless — client just discards token)
 exports.logout = (req, res) => {
-  const cookieName = process.env.SESSION_NAME || "sid";
-
-  req.session.destroy(() => {
-    res.clearCookie(cookieName, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-    });
-    res.send("✅ Logged out");
-  });
+  res.send("✅ Logged out (client must delete token)");
 };
 
-// SESSION CHECK
+// SESSION CHECK (decode token)
 exports.me = (req, res) => {
-  if (!req.session.user) return res.status(401).send("Not logged in");
-  res.json(req.session.user);
+  if (!req.user) return res.status(401).send("Not logged in");
+  res.json(req.user);
 };
