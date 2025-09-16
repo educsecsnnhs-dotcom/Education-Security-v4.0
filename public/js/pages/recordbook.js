@@ -10,10 +10,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   Auth.requireLogin();
   const user = Auth.getUser();
-  const token = Auth.getToken();
+  const token = localStorage.getItem("edusec_token"); // ✅ corrected token reference
 
   if (!user || !token) {
-    window.location.href = "/login.html";
+    window.location.href = "/html/login.html"; // ✅ corrected href
     return;
   }
 
