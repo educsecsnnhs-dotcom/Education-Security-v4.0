@@ -59,10 +59,10 @@ mongoose.connection.on('disconnected', () => {
 app.set('trust proxy', 1);
 
 // ------------------------------
-// Session Setup (MongoDB-backed, cloud only)
+// Session Setup (MongoDB-backed)
 // ------------------------------
 app.use(session({
-  name: process.env.SESSION_NAME || 'sid',
+  name: process.env.SESSION_NAME || 'edusec.sid',
   secret: process.env.SESSION_SECRET || 'change_me_now',
   resave: false,
   saveUninitialized: false,
@@ -71,19 +71,16 @@ app.use(session({
     mongoUrl: process.env.MONGO_URI,
     ttl: 60 * 60 * 24 * 7, // 7 days
     autoRemove: 'native',
-    crypto: {
-      secret: process.env.SESSION_SECRET || 'change_me_now',
-    },
   }),
   cookie: {
     httpOnly: true,
-    secure: true,       // ✅ always HTTPS on Render
-    sameSite: 'none',   // ✅ allow cross-site cookies
+    secure: process.env.NODE_ENV === 'production', // only HTTPS on Render
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
   },
 }));
 
-// Debug session middleware
+// Debug session middleware (remove later if noisy)
 app.use((req, res, next) => {
   if (!req.session) {
     console.error('⚠️ Session not available!');
