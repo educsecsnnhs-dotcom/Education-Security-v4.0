@@ -5,24 +5,34 @@ document.addEventListener("DOMContentLoaded", () => {
   Auth.requireLogin();
   const user = Auth.getUser();
 
+  function authHeaders(extra={}) {
+    const token = localStorage.getItem("token");
+    return { ...extra, Authorization: token ? `Bearer ${token}` : "" };
+  }
+
+  async function apiFetch(url, opts={}) {
+    const res = await fetch(url, {
+      ...opts,
+      headers: authHeaders({ "Content-Type": "application/json", ...(opts.headers||{}) }),
+    });
+    if(!res.ok) throw new Error("Request failed");
+    return res.json();
+  }
+
   const attendanceTable = document.getElementById("attendanceTable");
   const sectionSelect = document.getElementById("sectionSelect");
   const dateInput = document.getElementById("attendanceDate");
   const submitBtn = document.getElementById("submitAttendance");
   const auditTable = document.getElementById("auditTable");
 
-  // 🔹 Default date → today
   if (dateInput) {
     const today = new Date().toISOString().split("T")[0];
     dateInput.value = today;
   }
 
-  /**
-   * Student: View own attendance
-   */
   async function loadStudentAttendance() {
     try {
-      const logs = await apiFetch("/api/attendance/my", { credentials: "include" });
+      const logs = await apiFetch("/api/attendance/my");
       attendanceTable.innerHTML = "";
 
       if (!logs || !logs.length) {
@@ -45,12 +55,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  /**
-   * Moderator: Load section students for marking attendance
-   */
   async function loadSectionStudents(sectionId, date) {
     try {
-      const section = await apiFetch(`/api/attendance/section/${sectionId}?date=${date}`, { credentials: "include" });
+      const section = await apiFetch(`/api/attendance/section/${sectionId}?date=${date}`);
       attendanceTable.innerHTML = "";
 
       if (!section.students || !section.students.length) {
@@ -80,9 +87,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  /**
-   * Moderator: Submit attendance
-   */
   async function submitAttendance() {
     const sectionId = sectionSelect.value;
     const date = dateInput.value;
@@ -99,7 +103,6 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       await apiFetch("/api/attendance/submit", {
         method: "POST",
-        credentials: "include",
         body: JSON.stringify({ sectionId, date, records }),
       });
       alert("✅ Attendance submitted successfully");
@@ -109,12 +112,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  /**
-   * Registrar/Admin: Audit attendance logs
-   */
   async function loadAudit() {
     try {
-      const logs = await apiFetch("/api/attendance/audit", { credentials: "include" });
+      const logs = await apiFetch("/api/attendance/audit");
       auditTable.innerHTML = "";
 
       if (!logs || !logs.length) {
@@ -138,23 +138,16 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // 🔹 Role-based execution
-  if (user.role === "Student") {
-    loadStudentAttendance();
-  }
-
+  if (user.role === "Student") loadStudentAttendance();
   if (user.role === "Moderator") {
-    // Load moderator’s sections into dropdown
-    apiFetch("/api/attendance/mySections", { credentials: "include" })
+    apiFetch("/api/attendance/mySections")
       .then((sections) => {
         sectionSelect.innerHTML = `<option value="">-- Select Section --</option>`;
         sections.forEach((sec) => {
           sectionSelect.innerHTML += `<option value="${sec._id}">${sec.name}</option>`;
         });
       })
-      .catch((err) => {
-        console.error("Error loading sections:", err);
-      });
+      .catch((err) => console.error("Error loading sections:", err));
 
     sectionSelect.addEventListener("change", () => {
       if (sectionSelect.value) loadSectionStudents(sectionSelect.value, dateInput.value);
@@ -166,8 +159,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     submitBtn.addEventListener("click", submitAttendance);
   }
-
-  if (["Registrar", "Admin", "SuperAdmin"].includes(user.role)) {
-    loadAudit();
-  }
+  if (["Registrar", "Admin", "SuperAdmin"].includes(user.role)) loadAudit();
 });
+
