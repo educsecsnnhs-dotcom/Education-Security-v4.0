@@ -1,3 +1,4 @@
+// controllers/authController.js
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const { encryptPassword, decryptPassword } = require("../utils/caesar");
@@ -6,11 +7,14 @@ const { encryptPassword, decryptPassword } = require("../utils/caesar");
 exports.register = async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password)
-      return res.status(400).send("Email and password are required");
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password are required" });
+    }
 
     const existing = await User.findOne({ email });
-    if (existing) return res.status(400).send("Email already registered");
+    if (existing) {
+      return res.status(400).json({ message: "Email already registered" });
+    }
 
     const encryptedPass = encryptPassword(password);
 
@@ -22,10 +26,10 @@ exports.register = async (req, res) => {
     });
 
     await newUser.save();
-    res.status(201).send("✅ Registration successful");
+    res.status(201).json({ message: "✅ Registration successful" });
   } catch (err) {
     console.error("Register error:", err);
-    res.status(500).send("Server error");
+    res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -33,14 +37,19 @@ exports.register = async (req, res) => {
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password)
-      return res.status(400).send("Email and password are required");
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password are required" });
+    }
 
     const user = await User.findOne({ email });
-    if (!user) return res.status(400).send("Invalid credentials");
+    if (!user) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
 
     const decrypted = decryptPassword(user.password);
-    if (decrypted !== password) return res.status(400).send("Invalid credentials");
+    if (decrypted !== password) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
 
     const payload = {
       id: user._id,
@@ -49,24 +58,26 @@ exports.login = async (req, res) => {
       extraRoles: user.extraRoles,
     };
 
-    const token = jwt.sign(payload, process.env.JWT_SECRET || "change_me_now", {
+    const token = jwt.sign(payload, process.env.JWT_SECRET, {
       expiresIn: "7d",
     });
 
     res.json({ message: "✅ Login successful", token, user: payload });
   } catch (err) {
     console.error("Login error:", err);
-    res.status(500).send("Server error");
+    res.status(500).json({ message: "Server error" });
   }
 };
 
 // LOGOUT (JWT is stateless — client just discards token)
 exports.logout = (req, res) => {
-  res.send("✅ Logged out (client must delete token)");
+  res.json({ message: "✅ Logged out (client must delete token)" });
 };
 
 // SESSION CHECK (decode token)
 exports.me = (req, res) => {
-  if (!req.user) return res.status(401).send("Not logged in");
+  if (!req.user) {
+    return res.status(401).json({ message: "Not logged in" });
+  }
   res.json(req.user);
 };
