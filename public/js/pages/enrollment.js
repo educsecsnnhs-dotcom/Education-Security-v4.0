@@ -1,13 +1,15 @@
 // public/js/pages/enrollment.js
 document.addEventListener("DOMContentLoaded", () => {
   // Require Auth
-  if (!window.Auth || typeof Auth.getUser !== "function") {
-    console.error("Auth.getUser() is required (auth.js)");
+  if (!window.Auth || typeof Auth.getUser !== "function" || typeof Auth.getToken !== "function") {
+    console.error("Auth.getUser() and Auth.getToken() are required (auth.js)");
     return;
   }
 
   const user = Auth.getUser();
-  if (!user) {
+  const token = Auth.getToken();
+
+  if (!user || !token) {
     window.location.href = "/login.html";
     return;
   }
@@ -64,7 +66,8 @@ document.addEventListener("DOMContentLoaded", () => {
   if (logoutBtn) {
     logoutBtn.addEventListener("click", async () => {
       try {
-        await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+        // Just clear localStorage/sessionStorage since JWT is client-stored
+        Auth.logout();
       } catch (e) {}
       location.href = "/html/login.html";
     });
@@ -112,7 +115,9 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         const res = await fetch("/api/registrar/enrollment", {
           method: "POST",
-          credentials: "include", // important for session cookies
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
           body: formData,
         });
 
