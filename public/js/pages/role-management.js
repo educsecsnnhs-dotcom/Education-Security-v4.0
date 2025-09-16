@@ -158,13 +158,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         await apiFetch(`/api/superadmin/roles/${id}`, { method: "POST", body: payload });
         showToast("Role assigned (Principal)", "success");
       } else if (currentUser.role === "Registrar") {
-        const resp = await fetch("/api/registrar/assign-role", {
+        await apiFetch("/api/registrar/assign-role", {
           method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: id, role: newRole }),
+          body: { userId: id, role: newRole }
         });
-        if (!resp.ok) throw new Error(await resp.text());
         showToast("Role assigned (Registrar)", "success");
       }
       await loadAll();
