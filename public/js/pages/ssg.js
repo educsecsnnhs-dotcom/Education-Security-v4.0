@@ -15,15 +15,15 @@
 
   /* ---------- JWT Auth helper ---------- */
   const Auth = {
-    getToken() { return localStorage.getItem('jwt'); },
-    setToken(t) { if (t) localStorage.setItem('jwt', t); },
-    clearToken() { localStorage.removeItem('jwt'); },
+    getToken() { return localStorage.getItem('edusec_token'); },
+    setToken(t) { if (t) localStorage.setItem('edusec_token', t); },
+    clearToken() { localStorage.removeItem('edusec_token'); },
     getUser() {
-      try { return JSON.parse(localStorage.getItem('jwt_user')); } catch { return null; }
+      try { return JSON.parse(localStorage.getItem('edusec_user')); } catch { return null; }
     },
     setUser(u) {
-      if (u) localStorage.setItem('jwt_user', JSON.stringify(u));
-      else localStorage.removeItem('jwt_user');
+      if (u) localStorage.setItem('edusec_user', JSON.stringify(u));
+      else localStorage.removeItem('edusec_user');
     },
     logout() {
       this.clearToken(); this.setUser(null);
@@ -47,7 +47,7 @@
     if (resp.status === 401) {
       // auto logout on unauthorized
       Auth.logout();
-      window.location.href = '/public/html/login.html';
+      window.location.href = '/html/login.html';
       throw new Error('Unauthorized');
     }
     if (!resp.ok) {
